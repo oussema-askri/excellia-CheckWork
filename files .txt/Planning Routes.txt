@@ -1,0 +1,13 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ METHOD │ ENDPOINT                    │ ACCESS      │ DESCRIPTION            │
+├────────┼─────────────────────────────┼─────────────┼────────────────────────┤
+│ POST   │ /api/planning/upload        │ Admin       │ Upload Excel file      │
+│ GET    │ /api/planning               │ Admin       │ Get all planning       │
+│ GET    │ /api/planning/my            │ Employee    │ Get own planning       │
+│ GET    │ /api/planning/user/:id      │ Admin       │ Get user's planning    │
+│ GET    │ /api/planning/:id           │ Admin       │ Get single entry       │
+│ PUT    │ /api/planning/:id           │ Admin       │ Update entry           │
+│ DELETE │ /api/planning/:id           │ Admin       │ Delete entry           │
+│ DELETE │ /api/planning/batch/:batchId│ Admin       │ Delete batch upload    │
+│ GET    │ /api/planning/template      │ Admin       │ Download Excel template│
+└─────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,14 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ METHOD │ ENDPOINT                    │ ACCESS      │ DESCRIPTION            │
+├────────┼─────────────────────────────┼─────────────┼────────────────────────┤
+│ POST   │ /api/attendance/check-in    │ Employee    │ Check in               │
+│ POST   │ /api/attendance/check-out   │ Employee    │ Check out              │
+│ GET    │ /api/attendance/today       │ Employee    │ Get today's attendance │
+│ GET    │ /api/attendance/my          │ Employee    │ Get own attendance     │
+│ GET    │ /api/attendance             │ Admin       │ Get all attendance     │
+│ GET    │ /api/attendance/user/:id    │ Admin       │ Get user's attendance  │
+│ PUT    │ /api/attendance/:id         │ Admin       │ Update attendance      │
+│ DELETE │ /api/attendance/:id         │ Admin       │ Delete attendance      │
+│ GET    │ /api/attendance/stats       │ Admin       │ Dashboard statistics   │
+│ GET    │ /api/attendance/report      │ Admin       │ Generate report        │
+└─────────────────────────────────────────────────────────────────────────────┘

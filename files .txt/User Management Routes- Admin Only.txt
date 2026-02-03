@@ -1,0 +1,11 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ METHOD │ ENDPOINT              │ ACCESS      │ DESCRIPTION                  │
+├────────┼───────────────────────┼─────────────┼──────────────────────────────┤
+│ GET    │ /api/users            │ Admin       │ Get all users (paginated)    │
+│ GET    │ /api/users/:id        │ Admin       │ Get single user              │
+│ POST   │ /api/users            │ Admin       │ Create new user              │
+│ PUT    │ /api/users/:id        │ Admin       │ Update user                  │
+│ DELETE │ /api/users/:id        │ Admin       │ Delete user (soft delete)    │
+│ PUT    │ /api/users/:id/status │ Admin       │ Toggle user active status    │
+│ GET    │ /api/users/stats      │ Admin       │ Get user statistics          │
+└─────────────────────────────────────────────────────────────────────────────┘

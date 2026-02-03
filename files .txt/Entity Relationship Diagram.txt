@@ -1,0 +1,40 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATABASE SCHEMA (MongoDB)                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────┐         ┌─────────────────────────┐                │
+│  │        USER         │         │       ATTENDANCE        │                │
+│  ├─────────────────────┤         ├─────────────────────────┤                │
+│  │ _id: ObjectId (PK)  │◄────────│ userId: ObjectId (FK)   │                │
+│  │ employeeId: String  │         │ _id: ObjectId (PK)      │                │
+│  │ name: String        │         │ date: Date              │                │
+│  │ email: String       │         │ checkIn: Date           │                │
+│  │ password: String    │         │ checkOut: Date          │                │
+│  │ role: Enum          │         │ status: Enum            │                │
+│  │ department: String  │         │ workHours: Number       │                │
+│  │ position: String    │         │ notes: String           │                │
+│  │ phone: String       │         │ createdAt: Date         │                │
+│  │ isActive: Boolean   │         │ updatedAt: Date         │                │
+│  │ createdAt: Date     │         └─────────────────────────┘                │
+│  │ updatedAt: Date     │                                                     │
+│  └─────────────────────┘                                                     │
+│            │                                                                 │
+│            │                                                                 │
+│            ▼                                                                 │
+│  ┌─────────────────────────┐                                                │
+│  │       PLANNING          │                                                │
+│  ├─────────────────────────┤                                                │
+│  │ _id: ObjectId (PK)      │                                                │
+│  │ userId: ObjectId (FK)   │                                                │
+│  │ employeeId: String      │                                                │
+│  │ employeeName: String    │                                                │
+│  │ date: Date              │                                                │
+│  │ shift: String           │                                                │
+│  │ startTime: String       │                                                │
+│  │ endTime: String         │                                                │
+│  │ uploadBatch: String     │                                                │
+│  │ createdAt: Date         │                                                │
+│  │ updatedAt: Date         │                                                │
+│  └─────────────────────────┘                                                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘

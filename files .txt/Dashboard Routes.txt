@@ -1,0 +1,8 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ METHOD │ ENDPOINT                    │ ACCESS      │ DESCRIPTION            │
+├────────┼─────────────────────────────┼─────────────┼────────────────────────┤
+│ GET    │ /api/dashboard/stats        │ Admin       │ Overall statistics     │
+│ GET    │ /api/dashboard/today        │ Admin       │ Today's summary        │
+│ GET    │ /api/dashboard/weekly       │ Admin       │ Weekly summary         │
+│ GET    │ /api/dashboard/monthly      │ Admin       │ Monthly summary        │
+└─────────────────────────────────────────────────────────────────────────────┘

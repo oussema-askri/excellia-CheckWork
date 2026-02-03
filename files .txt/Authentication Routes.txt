@@ -1,0 +1,11 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ METHOD │ ENDPOINT              │ ACCESS      │ DESCRIPTION                  │
+├────────┼───────────────────────┼─────────────┼──────────────────────────────┤
+│ POST   │ /api/auth/register    │ Admin       │ Register new user            │
+│ POST   │ /api/auth/login       │ Public      │ Login user                   │
+│ GET    │ /api/auth/me          │ Authenticated│ Get current user profile    │
+│ PUT    │ /api/auth/profile     │ Authenticated│ Update own profile          │
+│ PUT    │ /api/auth/password    │ Authenticated│ Change password             │
+│ POST   │ /api/auth/logout      │ Authenticated│ Logout (invalidate token)   │
+│ POST   │ /api/auth/refresh     │ Authenticated│ Refresh JWT token           │
+└─────────────────────────────────────────────────────────────────────────────┘
