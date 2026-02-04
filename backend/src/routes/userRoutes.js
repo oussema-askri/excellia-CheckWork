@@ -9,11 +9,11 @@ const {
   deleteUser,
   toggleUserStatus,
   getUserStats,
-  resetDevice // ✅ Imported
+  resetDevice
 } = require('../controllers/userController');
 
 const { protect } = require('../middleware/auth');
-const { adminOnly } = require('../middleware/roleCheck');
+const { adminOnly, authorize } = require('../middleware/roleCheck'); // ✅ Import authorize
 const validate = require('../middleware/validate');
 const {
   createUserValidator,
@@ -40,22 +40,16 @@ router.get('/departments', async (req, res, next) => {
   }
 });
 
-router.use(adminOnly);
+// ✅ Allow Zitouna + Admin to view users
+router.get('/', authorize('admin', 'zitouna'), listUsersValidator, validate, getUsers);
+router.get('/stats', authorize('admin', 'zitouna'), getUserStats);
+router.get('/:id', authorize('admin', 'zitouna'), userIdValidator, validate, getUser);
 
-router.route('/')
-  .get(listUsersValidator, validate, getUsers)
-  .post(createUserValidator, validate, createUser);
-
-router.get('/stats', getUserStats);
-
-// ✅ NEW Route
-router.put('/:id/reset-device', userIdValidator, validate, resetDevice);
-
-router.route('/:id')
-  .get(userIdValidator, validate, getUser)
-  .put(updateUserValidator, validate, updateUser)
-  .delete(userIdValidator, validate, deleteUser);
-
-router.put('/:id/status', userIdValidator, validate, toggleUserStatus);
+// 🔒 Writes are Admin Only
+router.post('/', adminOnly, createUserValidator, validate, createUser);
+router.put('/:id/reset-device', adminOnly, userIdValidator, validate, resetDevice);
+router.put('/:id', adminOnly, updateUserValidator, validate, updateUser);
+router.delete('/:id', adminOnly, userIdValidator, validate, deleteUser);
+router.put('/:id/status', adminOnly, userIdValidator, validate, toggleUserStatus);
 
 module.exports = router;

@@ -9,11 +9,11 @@ const {
 } = require('../controllers/dashboardController');
 
 const { protect } = require('../middleware/auth');
-const { adminOnly } = require('../middleware/roleCheck');
+const { authorize } = require('../middleware/roleCheck');
 
 // All routes require authentication and admin role
 router.use(protect);
-router.use(adminOnly);
+router.use(authorize('admin', 'zitouna'));
 
 router.get('/stats', getStats);
 router.get('/today', getTodaySummary);

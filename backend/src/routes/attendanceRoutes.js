@@ -15,7 +15,7 @@ const {
 } = require('../controllers/attendanceController');
 
 const { protect } = require('../middleware/auth');
-const { adminOnly } = require('../middleware/roleCheck');
+const { adminOnly, authorize } = require('../middleware/roleCheck'); // ✅ Import authorize
 const validate = require('../middleware/validate');
 const {
   checkInValidator,
@@ -25,7 +25,6 @@ const {
   attendanceIdValidator
 } = require('../validators/attendanceValidator');
 
-// All routes require authentication
 router.use(protect);
 
 // Employee routes
@@ -34,12 +33,13 @@ router.post('/check-out', checkOutValidator, validate, checkOut);
 router.get('/today', getTodayAttendance);
 router.get('/my', listAttendanceValidator, validate, getMyAttendance);
 
-// Admin routes
-router.get('/', adminOnly, listAttendanceValidator, validate, getAllAttendance);
-router.get('/stats', adminOnly, getAttendanceStats);
-router.get('/report', adminOnly, getAttendanceReport);
-router.get('/user/:id', adminOnly, getUserAttendance);
+// ✅ Allow Zitouna + Admin to view attendance
+router.get('/', authorize('admin', 'zitouna'), listAttendanceValidator, validate, getAllAttendance);
+router.get('/stats', authorize('admin', 'zitouna'), getAttendanceStats);
+router.get('/report', authorize('admin', 'zitouna'), getAttendanceReport);
+router.get('/user/:id', authorize('admin', 'zitouna'), getUserAttendance);
 
+// 🔒 Writes are Admin Only
 router.route('/:id')
   .put(adminOnly, updateAttendanceValidator, validate, updateAttendance)
   .delete(adminOnly, attendanceIdValidator, validate, deleteAttendance);

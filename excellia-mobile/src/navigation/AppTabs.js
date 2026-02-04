@@ -19,7 +19,7 @@ export default function AppTabs() {
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          height: 60,
+          height: 95,
           paddingBottom: 8,
           paddingTop: 8,
         },

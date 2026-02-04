@@ -21,7 +21,7 @@ const authorize = (...roles) => {
 };
 
 /**
- * Admin only middleware
+ * Admin only middleware (Legacy wrapper)
  */
 const adminOnly = (req, res, next) => {
   if (!req.user) {
@@ -50,9 +50,6 @@ const employeeOnly = (req, res, next) => {
   next();
 };
 
-/**
- * Check if user owns the resource or is admin
- */
 const ownerOrAdmin = (userIdField = 'userId') => {
   return (req, res, next) => {
     if (!req.user) {

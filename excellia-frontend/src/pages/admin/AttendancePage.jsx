@@ -12,6 +12,7 @@ import Pagination from '../../components/common/Pagination'
 import Badge from '../../components/common/Badge'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import Loading from '../../components/common/Loading'
+import { useAuth } from '../../hooks/useAuth'
 
 const statusOptions = [
   { value: 'present', label: 'Present' },
@@ -34,6 +35,9 @@ const getStatusBadge = (status) => {
 }
 
 export default function AttendancePage() {
+  const { user } = useAuth()
+  const isZitouna = user?.role === 'zitouna'
+
   const [attendance, setAttendance] = useState([])
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
@@ -42,38 +46,81 @@ export default function AttendancePage() {
     endDate: dayjs().endOf('month').format('YYYY-MM-DD'),
     status: '',
   })
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 })
-  
-  // Edit state
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1,
+  })
+
+  // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false)
-  const [editingRecord, setEditingRecord] = useState(null)
-  const [editForm, setEditForm] = useState({ checkIn: '', checkOut: '', status: '', notes: '' })
+  const [editingAttendance, setEditingAttendance] = useState(null)
+  const [editForm, setEditForm] = useState({
+    checkIn: '',
+    checkOut: '',
+    status: '',
+    notes: ''
+  })
   const [editLoading, setEditLoading] = useState(false)
-  
-  // Delete state
+
+  // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deletingRecord, setDeletingRecord] = useState(null)
+  const [attendanceToDelete, setAttendanceToDelete] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
-  useEffect(() => { fetchAttendance() }, [pagination.page, filters])
+  useEffect(() => {
+    fetchAttendance()
+  }, [pagination.page, filters])
 
   const fetchAttendance = async () => {
     try {
       setLoading(true)
-      const params = { page: pagination.page, limit: pagination.limit, startDate: filters.startDate, endDate: filters.endDate }
-      if (filters.status) params.status = filters.status
+      
+      const params = {
+        page: pagination.page,
+        limit: pagination.limit,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+      }
+      
+      if (filters.status && filters.status.trim() !== '') {
+        params.status = filters.status
+      }
+      
       const response = await attendanceApi.getAll(params)
       setAttendance(response.data || [])
-      setPagination(prev => ({ ...prev, ...response.pagination }))
+      setPagination(prev => ({
+        ...prev,
+        ...response.pagination
+      }))
     } catch (error) {
+      console.error('Fetch error:', error)
       toast.error(error.message || 'Failed to fetch attendance')
+      setAttendance([])
     } finally {
       setLoading(false)
     }
   }
 
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }))
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }
+
+  const clearFilters = () => {
+    setFilters({
+      startDate: dayjs().startOf('month').format('YYYY-MM-DD'),
+      endDate: dayjs().endOf('month').format('YYYY-MM-DD'),
+      status: '',
+    })
+    setPagination(prev => ({ ...prev, page: 1 }))
+  }
+
+  // Edit handlers
   const handleEdit = (record) => {
-    setEditingRecord(record)
+    if (isZitouna) return
+    setEditingAttendance(record)
     setEditForm({
       checkIn: record.checkIn ? dayjs(record.checkIn).format('YYYY-MM-DDTHH:mm') : '',
       checkOut: record.checkOut ? dayjs(record.checkOut).format('YYYY-MM-DDTHH:mm') : '',
@@ -84,36 +131,53 @@ export default function AttendancePage() {
   }
 
   const handleEditSubmit = async () => {
+    if (!editingAttendance) return
+
     setEditLoading(true)
     try {
-      const data = { status: editForm.status, notes: editForm.notes }
-      if (editForm.checkIn) data.checkIn = new Date(editForm.checkIn).toISOString()
-      if (editForm.checkOut) data.checkOut = new Date(editForm.checkOut).toISOString()
-      await attendanceApi.update(editingRecord._id, data)
-      toast.success('Attendance updated')
+      const updateData = {
+        status: editForm.status,
+        notes: editForm.notes
+      }
+      
+      if (editForm.checkIn) {
+        updateData.checkIn = new Date(editForm.checkIn).toISOString()
+      }
+      if (editForm.checkOut) {
+        updateData.checkOut = new Date(editForm.checkOut).toISOString()
+      }
+
+      await attendanceApi.update(editingAttendance._id, updateData)
+      toast.success('Attendance updated successfully')
       setEditModalOpen(false)
+      setEditingAttendance(null)
       fetchAttendance()
     } catch (error) {
-      toast.error(error.message || 'Update failed')
+      toast.error(error.message || 'Failed to update attendance')
     } finally {
       setEditLoading(false)
     }
   }
 
+  // Delete handlers
   const handleDelete = (record) => {
-    setDeletingRecord(record)
+    if (isZitouna) return
+    setAttendanceToDelete(record)
     setDeleteDialogOpen(true)
   }
 
   const handleDeleteConfirm = async () => {
+    if (!attendanceToDelete) return
+
     setDeleteLoading(true)
     try {
-      await attendanceApi.delete(deletingRecord._id)
-      toast.success('Attendance deleted')
+      await attendanceApi.delete(attendanceToDelete._id)
+      toast.success('Attendance deleted successfully')
       setDeleteDialogOpen(false)
+      setAttendanceToDelete(null)
       fetchAttendance()
     } catch (error) {
-      toast.error(error.message || 'Delete failed')
+      toast.error(error.message || 'Failed to delete attendance')
     } finally {
       setDeleteLoading(false)
     }
@@ -121,65 +185,127 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Attendance</h1>
           <p className="text-gray-500 dark:text-gray-400">View and manage employee attendance</p>
         </div>
-        <Button variant="secondary" icon={FunnelIcon} onClick={() => setShowFilters(!showFilters)}>
-          {showFilters ? 'Hide Filters' : 'Filters'}
+        <Button
+          variant="secondary"
+          icon={FunnelIcon}
+          onClick={() => setShowFilters(!showFilters)}
+        >
+          {showFilters ? 'Hide Filters' : 'Show Filters'}
         </Button>
       </div>
 
+      {/* Filters */}
       {showFilters && (
-        <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <Card className="animate-fade-in bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <Input type="date" label="Start Date" value={filters.startDate} onChange={(e) => setFilters(prev => ({ ...prev, startDate: e.target.value }))} />
-            <Input type="date" label="End Date" value={filters.endDate} onChange={(e) => setFilters(prev => ({ ...prev, endDate: e.target.value }))} />
-            <Select label="Status" options={statusOptions} value={filters.status} onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))} placeholder="All Statuses" />
+            <Input
+              type="date"
+              label="Start Date"
+              value={filters.startDate}
+              onChange={(e) => handleFilterChange('startDate', e.target.value)}
+            />
+            <Input
+              type="date"
+              label="End Date"
+              value={filters.endDate}
+              onChange={(e) => handleFilterChange('endDate', e.target.value)}
+            />
+            <Select
+              label="Status"
+              options={statusOptions}
+              value={filters.status}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+              placeholder="All Statuses"
+            />
             <div className="flex items-end">
-              <Button variant="secondary" onClick={() => setFilters({ startDate: dayjs().startOf('month').format('YYYY-MM-DD'), endDate: dayjs().endOf('month').format('YYYY-MM-DD'), status: '' })} className="w-full">Clear</Button>
+              <Button variant="secondary" onClick={clearFilters} className="w-full">
+                Clear Filters
+              </Button>
             </div>
           </div>
         </Card>
       )}
 
+      {/* Table */}
       <Card noPadding className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
         {loading ? (
-          <div className="flex justify-center py-16"><Loading size="lg" /></div>
+          <div className="flex justify-center py-16">
+            <Loading size="lg" />
+          </div>
         ) : attendance.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 dark:text-gray-400">No attendance records found</div>
+          <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+            <p className="text-lg font-medium">No attendance records found</p>
+            <p className="text-sm mt-1">Try adjusting your filters</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-700/50">
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Employee</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Date</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Check In</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Check Out</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Hours</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Status</th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">Actions</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    Employee
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    Check In
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    Check Out
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    Work Hours
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                    Status
+                  </th>
+                  {/* ✅ HIDE ACTIONS HEADER FOR ZITOUNA */}
+                  {!isZitouna && (
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {attendance.map(record => (
-                  <tr key={record._id} className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750">
+                {attendance.map((record) => (
+                  <tr 
+                    key={record._id}
+                    className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <span className="text-white font-semibold text-xs">{record.userId?.name?.charAt(0) || '?'}</span>
+                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-white font-semibold text-xs">
+                            {record.userId?.name?.charAt(0).toUpperCase() || '?'}
+                          </span>
                         </div>
                         <div>
-                          <p className="font-semibold text-gray-900 dark:text-white">{record.userId?.name || 'Unknown'}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">{record.userId?.employeeId}</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {record.userId?.name || 'Unknown'}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                            {record.userId?.employeeId || 'N/A'}
+                          </p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <p className="font-semibold text-gray-900 dark:text-white">{dayjs(record.date).format('MMM D, YYYY')}</p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">{dayjs(record.date).format('dddd')}</p>
+                      <div>
+                        <p className="font-semibold text-gray-900 dark:text-white">
+                          {dayjs(record.date).format('MMM D, YYYY')}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {dayjs(record.date).format('dddd')}
+                        </p>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`font-semibold ${record.checkIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
@@ -192,50 +318,156 @@ export default function AttendancePage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="font-semibold text-gray-900 dark:text-white">{record.workHours ? `${record.workHours.toFixed(1)}h` : '—'}</span>
+                      <span className="font-semibold text-gray-900 dark:text-white">
+                        {record.workHours ? `${record.workHours.toFixed(1)}h` : '—'}
+                      </span>
                     </td>
-                    <td className="px-6 py-4">{getStatusBadge(record.status)}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(record)} className="text-indigo-600 dark:text-indigo-400"><PencilIcon className="w-4 h-4" /></Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(record)} className="text-red-600 dark:text-red-400"><TrashIcon className="w-4 h-4" /></Button>
-                      </div>
+                      {getStatusBadge(record.status)}
                     </td>
+                    {/* ✅ HIDE ACTIONS COLUMN FOR ZITOUNA */}
+                    {!isZitouna && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(record)}
+                            className="text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
+                            title="Edit"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(record)}
+                            className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                            title="Delete"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {pagination.total > 0 && <Pagination currentPage={pagination.page} totalPages={pagination.pages} totalItems={pagination.total} itemsPerPage={pagination.limit} onPageChange={(page) => setPagination(prev => ({ ...prev, page }))} />}
+        
+        {pagination.total > 0 && (
+          <Pagination
+            currentPage={pagination.page}
+            totalPages={pagination.pages}
+            totalItems={pagination.total}
+            itemsPerPage={pagination.limit}
+            onPageChange={(page) => setPagination(prev => ({ ...prev, page }))}
+          />
+        )}
       </Card>
 
       {/* Edit Modal */}
-      <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title="Edit Attendance" footer={
-        <>
-          <Button variant="secondary" onClick={() => setEditModalOpen(false)} disabled={editLoading}>Cancel</Button>
-          <Button onClick={handleEditSubmit} loading={editLoading}>Save Changes</Button>
-        </>
-      }>
-        {editingRecord && (
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <p className="font-semibold text-gray-900 dark:text-white">{editingRecord.userId?.name}</p>
-              <p className="text-sm text-gray-500">{dayjs(editingRecord.date).format('dddd, MMMM D, YYYY')}</p>
+      {!isZitouna && (
+        <Modal
+          isOpen={editModalOpen}
+          onClose={() => {
+            setEditModalOpen(false)
+            setEditingAttendance(null)
+          }}
+          title="Edit Attendance"
+          size="md"
+          footer={
+            <>
+              <Button 
+                variant="secondary" 
+                onClick={() => {
+                  setEditModalOpen(false)
+                  setEditingAttendance(null)
+                }}
+                disabled={editLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleEditSubmit}
+                loading={editLoading}
+              >
+                Save Changes
+              </Button>
+            </>
+          }
+        >
+          {editingAttendance && (
+            <div className="space-y-4">
+              {/* Employee Info */}
+              <div className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Employee</p>
+                <p className="font-semibold text-gray-900 dark:text-white">
+                  {editingAttendance.userId?.name || 'Unknown'}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {dayjs(editingAttendance.date).format('dddd, MMMM D, YYYY')}
+                </p>
+              </div>
+
+              {/* Check In */}
+              <Input
+                type="datetime-local"
+                label="Check In Time"
+                value={editForm.checkIn}
+                onChange={(e) => setEditForm(prev => ({ ...prev, checkIn: e.target.value }))}
+              />
+
+              {/* Check Out */}
+              <Input
+                type="datetime-local"
+                label="Check Out Time"
+                value={editForm.checkOut}
+                onChange={(e) => setEditForm(prev => ({ ...prev, checkOut: e.target.value }))}
+              />
+
+              {/* Status */}
+              <Select
+                label="Status"
+                options={statusOptions}
+                value={editForm.status}
+                onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+              />
+
+              {/* Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Notes
+                </label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Add notes..."
+                />
+              </div>
             </div>
-            <Input type="datetime-local" label="Check In" value={editForm.checkIn} onChange={(e) => setEditForm(prev => ({ ...prev, checkIn: e.target.value }))} />
-            <Input type="datetime-local" label="Check Out" value={editForm.checkOut} onChange={(e) => setEditForm(prev => ({ ...prev, checkOut: e.target.value }))} />
-            <Select label="Status" options={statusOptions} value={editForm.status} onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))} />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes</label>
-              <textarea value={editForm.notes} onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))} rows={3} className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Add notes..." />
-            </div>
-          </div>
-        )}
-      </Modal>
+          )}
+        </Modal>
+      )}
 
       {/* Delete Confirmation */}
-      <ConfirmDialog isOpen={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} onConfirm={handleDeleteConfirm} title="Delete Attendance" message={`Delete attendance record for ${deletingRecord?.userId?.name} on ${deletingRecord ? dayjs(deletingRecord.date).format('MMM D, YYYY') : ''}?`} loading={deleteLoading} />
+      {!isZitouna && (
+        <ConfirmDialog
+          isOpen={deleteDialogOpen}
+          onClose={() => {
+            setDeleteDialogOpen(false)
+            setAttendanceToDelete(null)
+          }}
+          onConfirm={handleDeleteConfirm}
+          title="Delete Attendance"
+          message={`Are you sure you want to delete the attendance record for ${attendanceToDelete?.userId?.name || 'this employee'} on ${attendanceToDelete ? dayjs(attendanceToDelete.date).format('MMM D, YYYY') : ''}? This action cannot be undone.`}
+          loading={deleteLoading}
+        />
+      )}
     </div>
   )
 }

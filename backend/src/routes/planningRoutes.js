@@ -14,7 +14,7 @@ const {
 } = require('../controllers/planningController');
 
 const { protect } = require('../middleware/auth');
-const { adminOnly } = require('../middleware/roleCheck');
+const { adminOnly, authorize } = require('../middleware/roleCheck'); // ✅ Import authorize
 const validate = require('../middleware/validate');
 const { uploadPlanning: uploadMiddleware } = require('../config/multer');
 const {
@@ -30,6 +30,9 @@ router.use(protect);
 // Routes accessible by all authenticated users
 router.get('/my', listPlanningValidator, validate, getMyPlanning);
 router.get('/', listPlanningValidator, validate, getAllPlanning); // Allow all to read
+// ✅ Allow Zitouna to get single planning item or specific user planning
+router.get('/user/:id', authorize('admin', 'zitouna'), getUserPlanning);
+router.get('/:id', authorize('admin', 'zitouna'), planningIdValidator, validate, getPlanning);
 
 // Admin only routes
 router.get('/template', adminOnly, downloadTemplate);

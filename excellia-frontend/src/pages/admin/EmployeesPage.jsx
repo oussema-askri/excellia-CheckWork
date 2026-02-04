@@ -9,19 +9,17 @@ import Pagination from '../../components/common/Pagination'
 import EmployeeList from '../../components/employees/EmployeeList'
 import EmployeeForm from '../../components/employees/EmployeeForm'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
+import { useAuth } from '../../hooks/useAuth'
 
 export default function EmployeesPage() {
+  const { user } = useAuth()
+  const isZitouna = user?.role === 'zitouna'
+
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0,
-    pages: 1,
-  })
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 })
 
-  // Modal states
   const [formOpen, setFormOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [formLoading, setFormLoading] = useState(false)
@@ -52,18 +50,32 @@ export default function EmployeesPage() {
   }
 
   const handleCreate = () => {
+    if (isZitouna) return
     setSelectedEmployee(null)
     setFormOpen(true)
   }
 
   const handleEdit = (employee) => {
+    if (isZitouna) return
     setSelectedEmployee(employee)
     setFormOpen(true)
   }
 
   const handleDelete = (employee) => {
+    if (isZitouna) return
     setEmployeeToDelete(employee)
     setDeleteDialogOpen(true)
+  }
+
+  const handleToggleStatus = async (employee) => {
+    if (isZitouna) return
+    try {
+      await userApi.toggleStatus(employee._id)
+      toast.success(`Employee ${employee.isActive ? 'deactivated' : 'activated'}`)
+      fetchEmployees()
+    } catch (error) {
+      toast.error(error.message || 'Status update failed')
+    }
   }
 
   const handleFormSubmit = async (data) => {
@@ -99,30 +111,21 @@ export default function EmployeesPage() {
     }
   }
 
-  const handleToggleStatus = async (employee) => {
-    try {
-      await userApi.toggleStatus(employee._id)
-      toast.success(`Employee ${employee.isActive ? 'deactivated' : 'activated'}`)
-      fetchEmployees()
-    } catch (error) {
-      toast.error(error.message || 'Status update failed')
-    }
-  }
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
-          <p className="text-gray-500">Manage your team members</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Employees</h1>
+          <p className="text-gray-500 dark:text-gray-400">Manage your team members</p>
         </div>
-        <Button onClick={handleCreate} icon={PlusIcon}>
-          Add Employee
-        </Button>
+        {/* ✅ HIDE FOR ZITOUNA */}
+        {!isZitouna && (
+          <Button onClick={handleCreate} icon={PlusIcon}>
+            Add Employee
+          </Button>
+        )}
       </div>
 
-      {/* Filters */}
       <Card>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
@@ -136,14 +139,14 @@ export default function EmployeesPage() {
         </div>
       </Card>
 
-      {/* Table */}
       <Card noPadding>
         <EmployeeList
           employees={employees}
           loading={loading}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onToggleStatus={handleToggleStatus}
+          // ✅ PASS UNDEFINED IF ZITOUNA TO HIDE ACTIONS
+          onEdit={!isZitouna ? handleEdit : undefined}
+          onDelete={!isZitouna ? handleDelete : undefined}
+          onToggleStatus={!isZitouna ? handleToggleStatus : undefined}
         />
         <Pagination
           currentPage={pagination.page}
@@ -154,24 +157,26 @@ export default function EmployeesPage() {
         />
       </Card>
 
-      {/* Employee Form Modal */}
-      <EmployeeForm
-        isOpen={formOpen}
-        onClose={() => setFormOpen(false)}
-        onSubmit={handleFormSubmit}
-        employee={selectedEmployee}
-        loading={formLoading}
-      />
+      {!isZitouna && (
+        <>
+          <EmployeeForm
+            isOpen={formOpen}
+            onClose={() => setFormOpen(false)}
+            onSubmit={handleFormSubmit}
+            employee={selectedEmployee}
+            loading={formLoading}
+          />
 
-      {/* Delete Confirmation */}
-      <ConfirmDialog
-        isOpen={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Employee"
-        message={`Are you sure you want to delete ${employeeToDelete?.name}? This action cannot be undone.`}
-        loading={deleteLoading}
-      />
+          <ConfirmDialog
+            isOpen={deleteDialogOpen}
+            onClose={() => setDeleteDialogOpen(false)}
+            onConfirm={handleDeleteConfirm}
+            title="Delete Employee"
+            message={`Are you sure you want to delete ${employeeToDelete?.name}? This action cannot be undone.`}
+            loading={deleteLoading}
+          />
+        </>
+      )}
     </div>
   )
 }

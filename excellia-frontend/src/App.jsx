@@ -15,7 +15,7 @@ import EmployeesPage from './pages/admin/EmployeesPage'
 import AttendancePage from './pages/admin/AttendancePage'
 import PlanningPage from './pages/admin/PlanningPage'
 import AdminPresencePage from './pages/admin/AdminPresencePage'
-import DevicesPage from './pages/admin/DevicesPage' // ✅ NEW
+import DevicesPage from './pages/admin/DevicesPage'
 
 // Employee Pages
 import EmployeeDashboard from './pages/employee/EmployeeDashboard'
@@ -45,11 +45,11 @@ function App() {
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
 
-      {/* Admin Routes */}
+      {/* Admin & Zitouna Routes */}
       <Route
         path="/admin"
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin', 'zitouna']}> {/* ✅ ADDED zitouna */}
             <AdminLayout />
           </ProtectedRoute>
         }
@@ -60,7 +60,10 @@ function App() {
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="planning" element={<PlanningPage />} />
         <Route path="presence" element={<AdminPresencePage />} />
-        <Route path="devices" element={<DevicesPage />} /> {/* ✅ NEW */}
+        {/* Only actual admin can see devices page? Or zitouna too? Assuming admin only for security */}
+        <Route path="devices" element={
+           user?.role === 'admin' ? <DevicesPage /> : <Navigate to="/admin/dashboard" />
+        } />
       </Route>
 
       {/* Employee Routes */}
@@ -83,7 +86,7 @@ function App() {
         path="/"
         element={
           user ? (
-            <Navigate to={user.role === 'admin' ? '/admin' : '/employee'} replace />
+            <Navigate to={['admin', 'zitouna'].includes(user.role) ? '/admin' : '/employee'} replace />
           ) : (
             <Navigate to="/login" replace />
           )

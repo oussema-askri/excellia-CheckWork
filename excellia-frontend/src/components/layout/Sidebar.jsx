@@ -5,7 +5,7 @@ import {
   UsersIcon,
   ClockIcon,
   CalendarDaysIcon,
-  DevicePhoneMobileIcon // ✅ NEW Icon
+  DevicePhoneMobileIcon
 } from '@heroicons/react/24/outline'
 
 const adminLinks = [
@@ -14,7 +14,16 @@ const adminLinks = [
   { name: 'Attendance', href: '/admin/attendance', icon: ClockIcon },
   { name: 'Planning', href: '/admin/planning', icon: CalendarDaysIcon },
   { name: 'Feuille de présence', href: '/admin/presence', icon: CalendarDaysIcon },
-  { name: 'Devices', href: '/admin/devices', icon: DevicePhoneMobileIcon }, // ✅ NEW Link
+  { name: 'Devices', href: '/admin/devices', icon: DevicePhoneMobileIcon },
+]
+
+// Zitouna sees everything except Devices
+const zitounaLinks = [
+  { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
+  { name: 'Employees', href: '/admin/employees', icon: UsersIcon },
+  { name: 'Attendance', href: '/admin/attendance', icon: ClockIcon },
+  { name: 'Planning', href: '/admin/planning', icon: CalendarDaysIcon },
+  { name: 'Feuille de présence', href: '/admin/presence', icon: CalendarDaysIcon },
 ]
 
 const employeeLinks = [
@@ -25,7 +34,9 @@ const employeeLinks = [
 ]
 
 export default function Sidebar({ isOpen, onClose, role = 'employee', isCollapsed, toggleCollapse }) {
-  const links = role === 'admin' ? adminLinks : employeeLinks
+  let links = employeeLinks
+  if (role === 'admin') links = adminLinks
+  if (role === 'zitouna') links = zitounaLinks
 
   return (
     <>

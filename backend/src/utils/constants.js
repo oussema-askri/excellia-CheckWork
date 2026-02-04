@@ -2,7 +2,8 @@ module.exports = {
   // User roles
   ROLES: {
     ADMIN: 'admin',
-    EMPLOYEE: 'employee'
+    EMPLOYEE: 'employee',
+    ZITOUNA: 'zitouna' // ✅ NEW ROLE
   },
 
   // Attendance statuses
@@ -32,7 +33,7 @@ module.exports = {
   PAGINATION: {
     DEFAULT_PAGE: 1,
     DEFAULT_LIMIT: 10,
-    MAX_LIMIT: 100
+    MAX_LIMIT: 1000
   },
 
   // Excel column mappings
