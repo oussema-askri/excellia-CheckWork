@@ -10,14 +10,20 @@ const errorHandler = require('./middleware/errorHandler');
 const ApiError = require('./utils/ApiError');
 
 const app = express();
+app.get('/healthcheck', (req, res) => {
+  res.status(200).send('OK');
+});
+app.get('/', (req, res) => {
+  res.status(200).send('✅ Excellia API is running properly on Render!');
+});
+app.use(express.json());                       
+app.use(express.urlencoded({ extended: true }));
+app.use('/api', routes);
 
-// ✅ 1. SECURITY HEADERS (Allow images from anywhere)
-app.use(helmet({
-  crossOriginResourcePolicy: false,
-}));
+// Security middleware
+app.use(helmet());
 
-// ✅ 2. CORS (The Fix)
-// We use a function to dynamically allow the incoming origin
+// CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, or server-to-server)
@@ -32,39 +38,39 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// ✅ 3. LOGGING
+// Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
 
-// ✅ 4. BODY PARSING (Increased limit for Excel files)
+// Body parsing middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// ✅ 5. STATIC FILES
+// Static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// ✅ 6. HEALTH CHECK (For Render)
+// Health check route
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date() });
+  res.status(200).json({
+    success: true,
+    message: 'Excellia API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
+  });
 });
 
-// ✅ 7. ROOT ROUTE (To prevent 404 on home page)
-app.get('/', (req, res) => {
-  res.send('✅ Excellia API is Running');
-});
-
-// ✅ 8. API ROUTES
+// API routes
 app.use('/api', routes);
 
-// 404 Handler
+// 404 handler
 app.use((req, res, next) => {
   next(new ApiError(404, `Route ${req.originalUrl} not found`));
 });
 
-// Global Error Handler
+// Global error handler
 app.use(errorHandler);
 
 module.exports = app;
