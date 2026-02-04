@@ -7,8 +7,12 @@ const loginValidator = [
     .isEmail().withMessage('Please enter a valid email')
     .normalizeEmail(),
   body('password')
-    .notEmpty().withMessage('Password is required')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+    .notEmpty().withMessage('Password is required'),
+  
+  // ✅ IMPORTANT: Allow deviceId to pass through validation
+  body('deviceId')
+    .optional()
+    .isString().withMessage('Device ID must be a string')
 ];
 
 const registerValidator = [

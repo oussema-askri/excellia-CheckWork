@@ -16,6 +16,8 @@ app.get('/healthcheck', (req, res) => {
 app.get('/', (req, res) => {
   res.status(200).send('✅ Excellia API is running properly on Render!');
 });
+app.use(express.json());                       
+app.use(express.urlencoded({ extended: true }));
 app.use('/api', routes);
 
 // Security middleware
@@ -63,5 +65,6 @@ app.use((req, res, next) => {
 
 // Global error handler
 app.use(errorHandler);
+app.use('/api/auth', authRoutes);
 
 module.exports = app;
