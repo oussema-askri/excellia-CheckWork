@@ -1,12 +1,23 @@
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs'); // ✅ Import fs
 const { v4: uuidv4 } = require('uuid');
 const ApiError = require('../utils/ApiError');
+
+// ✅ Ensure directories exist
+const uploadDir = path.join(__dirname, '../../uploads/planning');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 // Storage configuration for planning Excel files
 const planningStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../../uploads/planning'));
+    // Re-check inside (just in case)
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
