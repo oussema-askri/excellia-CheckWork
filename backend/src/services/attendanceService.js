@@ -1,47 +1,13 @@
 const dayjs = require('dayjs');
 const Attendance = require('../models/Attendance');
-const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES } = require('../utils/constants');
-const { getDateBounds, getMonthBounds } = require('../utils/helpers');
 const ApiError = require('../utils/ApiError');
 const { distanceMeters } = require('../utils/geo');
+const { getDateBounds, getMonthBounds } = require('../utils/helpers');
+const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES } = require('../utils/constants');
 
 class AttendanceService {
-  /**
-   * Check in user
-   */
-  static async markAbsent(userId, notes = '') {
-    const today = new Date();
-    const { start, end } = getDateBounds(today);
-
-    let attendance = await Attendance.findOne({
-      userId,
-      date: { $gte: start, $lte: end }
-    });
-
-    if (attendance) {
-      // Allow updating to absent if they haven't checked in yet? 
-      // Or if they are already present, maybe block it?
-      // Let's assume they can mark absent if they haven't checked in.
-      if (attendance.checkIn) {
-        throw new Error('Cannot mark absent: Already checked in today.');
-      }
-    } else {
-      attendance = new Attendance({
-        userId,
-        date: start,
-      });
-    }
-
-    attendance.status = ATTENDANCE_STATUS.ABSENT;
-    attendance.checkIn = null;
-    attendance.checkOut = null;
-    if (notes) attendance.notes = notes;
-
-    await attendance.save();
-    return attendance;
-  }
   static async checkIn(userId, location = null, notes = '') {
-    // 1) Geofence validation (before writing attendance)
+    // 1) Geofence validation
     const requireGeo = String(process.env.REQUIRE_GEOFENCE || 'false') === 'true';
 
     if (requireGeo) {
@@ -65,7 +31,6 @@ class AttendanceService {
       }
     }
 
-    // 2) Find or create today's attendance
     const today = new Date();
     const { start, end } = getDateBounds(today);
 
@@ -73,6 +38,11 @@ class AttendanceService {
       userId,
       date: { $gte: start, $lte: end }
     });
+
+    // ✅ Block if already marked absent
+    if (attendance && attendance.status === ATTENDANCE_STATUS.ABSENT) {
+      throw ApiError.badRequest('You are marked as ABSENT today. Cannot check in.');
+    }
 
     if (attendance && attendance.checkIn) {
       throw ApiError.badRequest('Already checked in today');
@@ -85,7 +55,6 @@ class AttendanceService {
       });
     }
 
-    // 3) Apply check-in fields
     attendance.checkIn = new Date();
     attendance.status = ATTENDANCE_STATUS.PRESENT;
 
@@ -99,7 +68,6 @@ class AttendanceService {
       };
     }
 
-    // 4) Late logic (optional)
     const checkInTime = dayjs(attendance.checkIn);
     const lateThreshold = dayjs(attendance.checkIn).hour(9).minute(LATE_THRESHOLD_MINUTES).second(0);
 
@@ -111,9 +79,6 @@ class AttendanceService {
     return attendance;
   }
 
-  /**
-   * Check out user
-   */
   static async checkOut(userId, location = null, notes = '') {
     const today = new Date();
     const { start, end } = getDateBounds(today);
@@ -124,41 +89,74 @@ class AttendanceService {
     });
 
     if (!attendance) {
-      throw new Error('No check-in found for today');
+      throw ApiError.badRequest('No check-in found for today');
+    }
+
+    // ✅ Block if absent
+    if (attendance.status === ATTENDANCE_STATUS.ABSENT) {
+      throw ApiError.badRequest('You are marked as ABSENT today. Cannot check out.');
     }
 
     if (!attendance.checkIn) {
-      throw new Error('Must check in before checking out');
+      throw ApiError.badRequest('Must check in before checking out');
     }
 
     if (attendance.checkOut) {
-      throw new Error('Already checked out today');
+      throw ApiError.badRequest('Already checked out today');
     }
 
     attendance.checkOut = new Date();
-
-    // Add location if provided
+    
     if (location) {
-      attendance.checkOutLocation = location;
+      attendance.checkOutLocation = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        address: location.address || ''
+      };
     }
 
     if (notes) {
-      attendance.notes = attendance.notes
-        ? `${attendance.notes}; ${notes}`
+      attendance.notes = attendance.notes 
+        ? `${attendance.notes}; ${notes}` 
         : notes;
     }
 
-    // Work hours will be calculated in pre-save hook
     await attendance.save();
     return attendance;
   }
 
-  /**
-   * Get attendance statistics for dashboard
-   */
+  // ✅ Mark Absent
+  static async markAbsent(userId, notes = '') {
+    const today = new Date();
+    const { start, end } = getDateBounds(today);
+
+    let attendance = await Attendance.findOne({
+      userId,
+      date: { $gte: start, $lte: end }
+    });
+
+    if (attendance) {
+      if (attendance.checkIn) {
+        throw new Error('Cannot mark absent: Already checked in today.');
+      }
+    } else {
+      attendance = new Attendance({
+        userId,
+        date: start,
+      });
+    }
+
+    attendance.status = ATTENDANCE_STATUS.ABSENT;
+    attendance.checkIn = null;
+    attendance.checkOut = null;
+    if (notes) attendance.notes = notes;
+
+    await attendance.save();
+    return attendance;
+  }
+
   static async getStats(startDate, endDate) {
     const matchStage = {};
-
     if (startDate && endDate) {
       matchStage.date = {
         $gte: new Date(startDate),
@@ -176,45 +174,25 @@ class AttendanceService {
       }
     ]);
 
-    const result = {
-      total: 0,
-      present: 0,
-      absent: 0,
-      late: 0,
-      halfDay: 0,
-      onLeave: 0
-    };
+    const result = { total: 0, present: 0, absent: 0, late: 0, halfDay: 0, onLeave: 0 };
 
     stats.forEach(stat => {
       result.total += stat.count;
       switch (stat._id) {
-        case 'present':
-          result.present = stat.count;
-          break;
-        case 'absent':
-          result.absent = stat.count;
-          break;
-        case 'late':
-          result.late = stat.count;
-          break;
-        case 'half-day':
-          result.halfDay = stat.count;
-          break;
-        case 'on-leave':
-          result.onLeave = stat.count;
-          break;
+        case 'present': result.present = stat.count; break;
+        case 'absent': result.absent = stat.count; break;
+        case 'late': result.late = stat.count; break;
+        case 'half-day': result.halfDay = stat.count; break;
+        case 'on-leave': result.onLeave = stat.count; break;
       }
     });
 
     return result;
   }
 
-  /**
-   * Get today's attendance summary
-   */
   static async getTodaySummary() {
     const { start, end } = getDateBounds(new Date());
-
+    
     const [stats, recentCheckIns] = await Promise.all([
       Attendance.aggregate([
         { $match: { date: { $gte: start, $lte: end } } },
@@ -240,9 +218,6 @@ class AttendanceService {
     };
   }
 
-  /**
-   * Get monthly report for a user
-   */
   static async getMonthlyReport(userId, year, month) {
     const startDate = dayjs().year(year).month(month - 1).startOf('month').toDate();
     const endDate = dayjs().year(year).month(month - 1).endOf('month').toDate();
@@ -253,18 +228,12 @@ class AttendanceService {
     }).sort({ date: 1 });
 
     const daysInMonth = dayjs(startDate).daysInMonth();
-
+    
     const summary = {
       totalDays: daysInMonth,
       workingDays: attendances.length,
-      present: 0,
-      absent: 0,
-      late: 0,
-      halfDay: 0,
-      onLeave: 0,
-      totalWorkHours: 0,
-      totalOvertimeHours: 0,
-      averageWorkHours: 0
+      present: 0, absent: 0, late: 0, halfDay: 0, onLeave: 0,
+      totalWorkHours: 0, totalOvertimeHours: 0, averageWorkHours: 0
     };
 
     attendances.forEach(att => {
@@ -277,10 +246,7 @@ class AttendanceService {
       summary.averageWorkHours = parseFloat((summary.totalWorkHours / summary.workingDays).toFixed(2));
     }
 
-    return {
-      summary,
-      attendances
-    };
+    return { summary, attendances };
   }
 }
 
