@@ -65,6 +65,5 @@ app.use((req, res, next) => {
 
 // Global error handler
 app.use(errorHandler);
-app.use('/api/auth', authRoutes);
 
 module.exports = app;
