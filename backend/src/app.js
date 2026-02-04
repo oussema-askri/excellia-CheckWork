@@ -10,27 +10,13 @@ const errorHandler = require('./middleware/errorHandler');
 const ApiError = require('./utils/ApiError');
 
 const app = express();
-app.get('/healthcheck', (req, res) => {
-  res.status(200).send('OK');
-});
-app.get('/', (req, res) => {
-  res.status(200).send('✅ Excellia API is running properly on Render!');
-});
-app.use(express.json());                       
-app.use(express.urlencoded({ extended: true }));
-app.use('/api', routes);
 
-// Security middleware
-app.use(helmet());
-
-// CORS configuration
+// ✅ 1. CORS - MUST BE FIRST!
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    
-    // Allow any origin (for development convenience)
-    // In strict production, you would check against an array here.
+    // Allow all origins
     return callback(null, true);
   },
   credentials: true,
@@ -38,21 +24,37 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Logging middleware
+// Handle preflight requests
+app.options('*', cors());
+
+// ✅ 2. Security middleware (after CORS)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// ✅ 3. Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
 
-// Body parsing middleware
+// ✅ 4. Body parsing middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static files
+// ✅ 5. Static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Health check route
+// ✅ 6. Health check routes (no auth needed)
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: '✅ Excellia API is running!',
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -62,15 +64,19 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes
+app.get('/healthcheck', (req, res) => {
+  res.status(200).send('OK');
+});
+
+// ✅ 7. API routes (AFTER all middleware)
 app.use('/api', routes);
 
-// 404 handler
+// ✅ 8. 404 handler
 app.use((req, res, next) => {
   next(new ApiError(404, `Route ${req.originalUrl} not found`));
 });
 
-// Global error handler
+// ✅ 9. Global error handler (MUST BE LAST)
 app.use(errorHandler);
 
 module.exports = app;
