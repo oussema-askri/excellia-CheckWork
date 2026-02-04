@@ -165,7 +165,7 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
 
     if (dayNum > 31) break;
 
-    // Clear extra days (29, 30, 31)
+    // Clear extra days
     if (dayNum > daysInMonth) {
       sheet.cell(r, dateCol).value('');
       sheet.cell(r, tasksCol).value('');
@@ -187,22 +187,24 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
     const a = attendanceByDay.get(dayNum);
     const shiftIndex = getShiftIndex(p?.shift);
 
-    // ✅ NEW LOGIC: If NO Attendance -> Empty everything (Task & Time)
-    if (!a) {
-      sheet.cell(r, tasksCol).value('');
-      sheet.cell(r, timeCol).value('');
-      continue; 
+    // ✅ CHECK FOR ABSENT FIRST
+    if (a && a.status === 'absent') {
+      sheet.cell(r, dateCol).value(''); // Clear Date (as requested)
+      sheet.cell(r, tasksCol).value('Absent'); // Task = Absent
+      sheet.cell(r, timeCol).value(''); // Time = Empty
+      continue;
     }
 
-    // If Attendance exists, we show Time & Task
-    const realTime = formatRealTimeRange(a.checkIn, a.checkOut);
+    // If not absent, continue logic
+    // Set Time (Real Attendance or Empty)
+    const realTime = a ? formatRealTimeRange(a.checkIn, a.checkOut) : '';
     sheet.cell(r, timeCol).value(realTime);
 
     if (shiftIndex === null) {
-      // Attendance exists but No Planning -> Empty Task
+      // No Planning = Empty Task
       sheet.cell(r, tasksCol).value('');
     } else {
-      // Attendance exists AND Planning exists -> Set Task
+      // Planning Exists -> Set Task
       const task = isWeekend ? TASK_WEEKEND : TASK_WEEKDAY;
       sheet.cell(r, tasksCol).value(task);
     }

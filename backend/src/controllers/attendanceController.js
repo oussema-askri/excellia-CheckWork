@@ -6,16 +6,16 @@ const { PAGINATION } = require('../utils/constants');
 const { getDateBounds } = require('../utils/helpers');
 const dayjs = require('dayjs');
 
-/**
- * @desc    Check in
- * @route   POST /api/attendance/check-in
- * @access  Private/Employee
- */
 const checkIn = async (req, res, next) => {
   try {
     const { notes, location } = req.body;
+    
+    const attendance = await AttendanceService.checkIn(
+      req.user._id,
+      location,
+      notes
+    );
 
-    const attendance = await AttendanceService.checkIn(req.user._id, location, notes);
     await attendance.populate('userId', 'name employeeId email');
 
     ApiResponse.success(res, { attendance }, 'Checked in successfully');
@@ -23,16 +23,17 @@ const checkIn = async (req, res, next) => {
     next(error);
   }
 };
-/**
- * @desc    Check out
- * @route   POST /api/attendance/check-out
- * @access  Private/Employee
- */
+
 const checkOut = async (req, res, next) => {
   try {
     const { notes, location } = req.body;
+    
+    const attendance = await AttendanceService.checkOut(
+      req.user._id,
+      location,
+      notes
+    );
 
-    const attendance = await AttendanceService.checkOut(req.user._id, location, notes);
     await attendance.populate('userId', 'name employeeId email');
 
     ApiResponse.success(res, { attendance }, 'Checked out successfully');
@@ -40,26 +41,32 @@ const checkOut = async (req, res, next) => {
     next(error);
   }
 };
-/**
- * @desc    Get today's attendance for current user
- * @route   GET /api/attendance/today
- * @access  Private
- */
+
+// ✅ NEW: Mark Absent
+const markAbsent = async (req, res, next) => {
+  try {
+    const { notes } = req.body;
+    
+    // Call the service method
+    const attendance = await AttendanceService.markAbsent(req.user._id, notes);
+
+    await attendance.populate('userId', 'name employeeId email');
+
+    ApiResponse.success(res, { attendance }, 'Marked as absent');
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getTodayAttendance = async (req, res, next) => {
   try {
     const attendance = await Attendance.getTodayAttendance(req.user._id);
-
     ApiResponse.success(res, { attendance });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @desc    Get my attendance history
- * @route   GET /api/attendance/my
- * @access  Private
- */
 const getMyAttendance = async (req, res, next) => {
   try {
     const {
@@ -79,9 +86,7 @@ const getMyAttendance = async (req, res, next) => {
       };
     }
 
-    if (status) {
-      query.status = status;
-    }
+    if (status) query.status = status;
 
     const pageNum = parseInt(page);
     const limitNum = Math.min(parseInt(limit), PAGINATION.MAX_LIMIT);
@@ -108,11 +113,6 @@ const getMyAttendance = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get all attendance records
- * @route   GET /api/attendance
- * @access  Private/Admin
- */
 const getAllAttendance = async (req, res, next) => {
   try {
     const {
@@ -125,7 +125,6 @@ const getAllAttendance = async (req, res, next) => {
       department
     } = req.query;
 
-    // Build query
     const query = {};
 
     if (startDate && endDate) {
@@ -135,19 +134,13 @@ const getAllAttendance = async (req, res, next) => {
       };
     }
 
-    if (status) {
-      query.status = status;
-    }
-
-    if (userId) {
-      query.userId = userId;
-    }
+    if (status) query.status = status;
+    if (userId) query.userId = userId;
 
     const pageNum = parseInt(page);
     const limitNum = Math.min(parseInt(limit), PAGINATION.MAX_LIMIT);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build aggregation pipeline for department filter
     let attendances, total;
 
     if (department) {
@@ -203,11 +196,6 @@ const getAllAttendance = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Get user's attendance
- * @route   GET /api/attendance/user/:id
- * @access  Private/Admin
- */
 const getUserAttendance = async (req, res, next) => {
   try {
     const {
@@ -252,11 +240,6 @@ const getUserAttendance = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Update attendance
- * @route   PUT /api/attendance/:id
- * @access  Private/Admin
- */
 const updateAttendance = async (req, res, next) => {
   try {
     const allowedUpdates = ['checkIn', 'checkOut', 'status', 'notes'];
@@ -274,9 +257,7 @@ const updateAttendance = async (req, res, next) => {
       { new: true, runValidators: true }
     ).populate('userId', 'name employeeId email');
 
-    if (!attendance) {
-      return next(ApiError.notFound('Attendance record not found'));
-    }
+    if (!attendance) return next(ApiError.notFound('Attendance record not found'));
 
     ApiResponse.success(res, { attendance }, 'Attendance updated successfully');
   } catch (error) {
@@ -284,54 +265,30 @@ const updateAttendance = async (req, res, next) => {
   }
 };
 
-/**
- * @desc    Delete attendance
- * @route   DELETE /api/attendance/:id
- * @access  Private/Admin
- */
 const deleteAttendance = async (req, res, next) => {
   try {
     const attendance = await Attendance.findByIdAndDelete(req.params.id);
-
-    if (!attendance) {
-      return next(ApiError.notFound('Attendance record not found'));
-    }
-
+    if (!attendance) return next(ApiError.notFound('Attendance record not found'));
     ApiResponse.success(res, null, 'Attendance deleted successfully');
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @desc    Get attendance statistics
- * @route   GET /api/attendance/stats
- * @access  Private/Admin
- */
 const getAttendanceStats = async (req, res, next) => {
   try {
     const { startDate, endDate } = req.query;
-    
     const stats = await AttendanceService.getStats(startDate, endDate);
-    
     ApiResponse.success(res, { stats });
   } catch (error) {
     next(error);
   }
 };
 
-/**
- * @desc    Get attendance report
- * @route   GET /api/attendance/report
- * @access  Private/Admin
- */
 const getAttendanceReport = async (req, res, next) => {
   try {
     const { userId, year, month } = req.query;
-
-    if (!year || !month) {
-      return next(ApiError.badRequest('Year and month are required'));
-    }
+    if (!year || !month) return next(ApiError.badRequest('Year and month are required'));
 
     const report = await AttendanceService.getMonthlyReport(
       userId,
@@ -348,6 +305,7 @@ const getAttendanceReport = async (req, res, next) => {
 module.exports = {
   checkIn,
   checkOut,
+  markAbsent, // ✅ EXPORTED
   getTodayAttendance,
   getMyAttendance,
   getAllAttendance,

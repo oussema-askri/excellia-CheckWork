@@ -9,6 +9,37 @@ class AttendanceService {
   /**
    * Check in user
    */
+  static async markAbsent(userId, notes = '') {
+    const today = new Date();
+    const { start, end } = getDateBounds(today);
+
+    let attendance = await Attendance.findOne({
+      userId,
+      date: { $gte: start, $lte: end }
+    });
+
+    if (attendance) {
+      // Allow updating to absent if they haven't checked in yet? 
+      // Or if they are already present, maybe block it?
+      // Let's assume they can mark absent if they haven't checked in.
+      if (attendance.checkIn) {
+        throw new Error('Cannot mark absent: Already checked in today.');
+      }
+    } else {
+      attendance = new Attendance({
+        userId,
+        date: start,
+      });
+    }
+
+    attendance.status = ATTENDANCE_STATUS.ABSENT;
+    attendance.checkIn = null;
+    attendance.checkOut = null;
+    if (notes) attendance.notes = notes;
+
+    await attendance.save();
+    return attendance;
+  }
   static async checkIn(userId, location = null, notes = '') {
     // 1) Geofence validation (before writing attendance)
     const requireGeo = String(process.env.REQUIRE_GEOFENCE || 'false') === 'true';

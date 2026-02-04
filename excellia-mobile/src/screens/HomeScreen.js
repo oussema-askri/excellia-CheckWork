@@ -21,7 +21,31 @@ export default function HomeScreen() {
       // ignore
     }
   };
-
+  const onMarkAbsent = async () => {
+    Alert.alert(
+      'Confirm Absence',
+      'Are you sure you want to mark yourself as ABSENT today?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'I am Absent',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await attendanceApi.markAbsent();
+              await refreshToday();
+              Alert.alert('Status Updated', 'You are marked as absent for today.');
+            } catch (e) {
+              Alert.alert('Error', e.message || 'Failed to mark absent');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
   useEffect(() => {
     refreshToday();
     const t = setInterval(() => setNow(dayjs()), 1000);
@@ -66,8 +90,8 @@ export default function HomeScreen() {
   const confirmAction = (action) => {
     const isCheckIn = action === 'checkIn';
     const title = isCheckIn ? 'Confirm Check In' : 'Confirm Check Out';
-    const message = isCheckIn 
-      ? 'Are you sure you want to start your shift?' 
+    const message = isCheckIn
+      ? 'Are you sure you want to start your shift?'
       : 'Are you sure you want to end your shift?';
 
     Alert.alert(
@@ -110,7 +134,7 @@ export default function HomeScreen() {
           <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
           <Text style={typography.caption}>{now.format('dddd, MMM D, YYYY')}</Text>
         </View>
-        
+
         <Text style={styles.time}>{now.format('HH:mm')}<Text style={styles.seconds}>{now.format(':ss')}</Text></Text>
 
         <View style={styles.statsRow}>
@@ -157,6 +181,20 @@ export default function HomeScreen() {
           </View>
         )}
       </View>
+      {!today?.checkIn && !today?.status && (
+        <Pressable
+          style={styles.absentBtn}
+          onPress={onMarkAbsent}
+          disabled={loading}
+        >
+          <Text style={styles.absentText}>I am Absent Today</Text>
+        </Pressable>
+      )}
+      {today?.status === 'absent' && (
+        <View style={styles.absentBanner}>
+          <Text style={styles.absentBannerText}>You are marked ABSENT today.</Text>
+        </View>
+      )}
 
       {/* Info Card */}
       <View style={styles.infoCard}>
@@ -302,5 +340,31 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 18,
+  },
+   absentBtn: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  absentText: {
+    color: '#ef4444',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  absentBanner: {
+    backgroundColor: '#ef4444',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  absentBannerText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
