@@ -11,12 +11,14 @@ const ApiError = require('./utils/ApiError');
 
 const app = express();
 
-// ✅ 1. CORS - MUST BE FIRST!
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
     if (!origin) return callback(null, true);
-    // Allow all origins
+    
+    // Allow any origin (for development convenience)
+    // In strict production, you would check against an array here.
     return callback(null, true);
   },
   credentials: true,
@@ -24,37 +26,49 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Handle preflight requests
-app.options('*', cors());
+app.get('/healthcheck', (req, res) => {
+  res.status(200).send('OK');
+});
+app.get('/', (req, res) => {
+  res.status(200).send('✅ Excellia API is running properly on Render!');
+});
+app.use(express.json());                       
+app.use(express.urlencoded({ extended: true }));
+app.use('/api', routes);
 
-// ✅ 2. Security middleware (after CORS)
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+// Security middleware
+app.use(helmet());
+
+// CORS configuration
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    if (!origin) return callback(null, true);
+    
+    // Allow any origin (for development convenience)
+    // In strict production, you would check against an array here.
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// ✅ 3. Logging middleware
+// Logging middleware
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
 }
 
-// ✅ 4. Body parsing middleware
+// Body parsing middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// ✅ 5. Static files
+// Static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// ✅ 6. Health check routes (no auth needed)
-app.get('/', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: '✅ Excellia API is running!',
-    timestamp: new Date().toISOString()
-  });
-});
-
+// Health check route
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -64,19 +78,15 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/healthcheck', (req, res) => {
-  res.status(200).send('OK');
-});
-
-// ✅ 7. API routes (AFTER all middleware)
+// API routes
 app.use('/api', routes);
 
-// ✅ 8. 404 handler
+// 404 handler
 app.use((req, res, next) => {
   next(new ApiError(404, `Route ${req.originalUrl} not found`));
 });
 
-// ✅ 9. Global error handler (MUST BE LAST)
+// Global error handler
 app.use(errorHandler);
 
 module.exports = app;
