@@ -25,7 +25,11 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin: [
+    'http://localhost:5173', // Local Frontend
+    'http://localhost:4173', // Vite Preview
+    'https://excellia-web.onrender.com' // Your Production Frontend (update if different)
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
