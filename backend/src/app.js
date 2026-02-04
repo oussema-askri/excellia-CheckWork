@@ -10,6 +10,13 @@ const errorHandler = require('./middleware/errorHandler');
 const ApiError = require('./utils/ApiError');
 
 const app = express();
+app.get('/healthcheck', (req, res) => {
+  res.status(200).send('OK');
+});
+app.get('/', (req, res) => {
+  res.status(200).send('✅ Excellia API is running properly on Render!');
+});
+app.use('/api', routes);
 
 // Security middleware
 app.use(helmet());
