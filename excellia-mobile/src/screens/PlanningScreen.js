@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   FlatList,
   Pressable,
   TextInput,
+  LayoutAnimation,
   Platform,
   UIManager,
   TouchableOpacity
 } from 'react-native';
 import dayjs from 'dayjs';
+import { SafeAreaView } from 'react-native-safe-area-context'; // ✅ Safe Area
 import { Ionicons } from '@expo/vector-icons';
 import { planningApi } from '../api/planningApi';
 import { useAuth } from '../context/AuthContext';
@@ -80,9 +82,7 @@ export default function PlanningScreen() {
     }
   };
 
-  useEffect(() => {
-    loadPlanning();
-  }, [currentMonth]);
+  useEffect(() => { loadPlanning(); }, [currentMonth]);
 
   const daysInMonth = useMemo(() => {
     const days = [];
@@ -117,8 +117,8 @@ export default function PlanningScreen() {
     }));
   }, [planningData, selectedDate, searchQuery]);
 
-  const handlePrevMonth = () => setCurrentMonth(prev => prev.subtract(1, 'month'));
-  const handleNextMonth = () => setCurrentMonth(prev => prev.add(1, 'month'));
+  const handlePrevMonth = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setCurrentMonth(prev => prev.subtract(1, 'month')); };
+  const handleNextMonth = () => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setCurrentMonth(prev => prev.add(1, 'month')); };
   const handleSelectDate = (date) => setSelectedDate(date.format('YYYY-MM-DD'));
 
   const renderDateItem = ({ item }) => {
@@ -128,41 +128,26 @@ export default function PlanningScreen() {
 
     return (
       <Pressable 
-        style={[
-          styles.dateItem, 
-          isSelected && styles.dateItemSelected,
-          isToday && !isSelected && styles.dateItemToday
-        ]} 
+        style={[styles.dateItem, isSelected && styles.dateItemSelected, isToday && !isSelected && styles.dateItemToday]} 
         onPress={() => handleSelectDate(item)}
       >
-        <Text style={[
-          styles.dateDayName, 
-          isSelected && styles.textSelected,
-          isWeekend && !isSelected && styles.textWeekend
-        ]}>
+        <Text style={[styles.dateDayName, isSelected && styles.textSelected, isWeekend && !isSelected && styles.textWeekend]}>
           {item.format('ddd')}
         </Text>
-        <Text style={[styles.dateNumber, isSelected && styles.textSelected]}>
-          {item.format('DD')}
-        </Text>
+        <Text style={[styles.dateNumber, isSelected && styles.textSelected]}>{item.format('DD')}</Text>
         {isSelected && <View style={styles.activeDot} />}
       </Pressable>
     );
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.monthRow}>
-          <TouchableOpacity onPress={handlePrevMonth} style={styles.iconBtn}>
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={handlePrevMonth} style={styles.iconBtn}><Ionicons name="chevron-back" size={24} color={colors.text} /></TouchableOpacity>
           <Text style={styles.monthTitle}>{currentMonth.format('MMMM YYYY')}</Text>
-          <TouchableOpacity onPress={handleNextMonth} style={styles.iconBtn}>
-            <Ionicons name="chevron-forward" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={handleNextMonth} style={styles.iconBtn}><Ionicons name="chevron-forward" size={24} color={colors.text} /></TouchableOpacity>
         </View>
-
         <View style={styles.dateStrip}>
           <FlatList
             ref={dateListRef}
@@ -207,7 +192,6 @@ export default function PlanningScreen() {
                   <Text style={[styles.shiftTitle, { color: style.text }]}>{item.title}</Text>
                   <Text style={styles.shiftCount}>{item.data.length} People</Text>
                 </View>
-                
                 {item.data.map(emp => {
                   const isMe = emp.employeeId === user?.employeeId;
                   return (
@@ -217,16 +201,12 @@ export default function PlanningScreen() {
                           <Text style={styles.avatarText}>{emp.employeeName.charAt(0)}</Text>
                         </View>
                         <View>
-                          <Text style={styles.empName}>
-                            {emp.employeeName} {isMe && '(You)'}
-                          </Text>
+                          <Text style={styles.empName}>{emp.employeeName} {isMe && '(You)'}</Text>
                           <Text style={styles.empId}>{emp.employeeId}</Text>
                         </View>
                       </View>
                       <View style={[styles.timeBadge, { backgroundColor: style.bg, borderColor: style.border }]}>
-                        <Text style={[styles.timeText, { color: style.text }]}>
-                          {emp.startTime} - {emp.endTime}
-                        </Text>
+                        <Text style={[styles.timeText, { color: style.text }]}>{emp.startTime} - {emp.endTime}</Text>
                       </View>
                     </View>
                   );
@@ -236,80 +216,41 @@ export default function PlanningScreen() {
           }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: colors.background,
-    paddingTop: spacing.xl + 20, // ✅ INCREASED TOP PADDING
-  },
-  
+  container: { flex: 1, backgroundColor: colors.background },
   header: { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: spacing.sm },
   monthRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: spacing.md },
   monthTitle: { ...typography.subheader, color: colors.text },
   iconBtn: { padding: spacing.xs },
-  
   dateStrip: { height: 70 },
-  dateItem: {
-    width: 50, height: 64, marginHorizontal: 4, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    justifyContent: 'center', alignItems: 'center'
-  },
+  dateItem: { width: 50, height: 64, marginHorizontal: 4, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
   dateItemSelected: { backgroundColor: colors.primary },
   dateItemToday: { borderWidth: 1, borderColor: colors.primary },
-  
   dateDayName: { fontSize: 12, color: colors.textSecondary, marginBottom: 4, textTransform: 'uppercase' },
   dateNumber: { fontSize: 18, fontWeight: '700', color: colors.text },
-  
   textSelected: { color: 'white' },
   textWeekend: { color: colors.danger },
   activeDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: 'white', marginTop: 4 },
-
-  searchContainer: {
-    margin: spacing.md,
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: borderRadius.md,
-    borderWidth: 1, borderColor: colors.border,
-    paddingHorizontal: spacing.md
-  },
+  searchContainer: { margin: spacing.md, flexDirection: 'row', alignItems: 'center', backgroundColor: colors.card, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md },
   searchIcon: { marginRight: spacing.sm },
   searchInput: { flex: 1, height: 44, color: colors.text },
-
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { color: colors.textSecondary, marginTop: spacing.md },
-
   shiftSection: { marginBottom: spacing.lg },
-  shiftHeader: { 
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: spacing.sm, paddingLeft: spacing.sm,
-    borderLeftWidth: 4 
-  },
+  shiftHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm, paddingLeft: spacing.sm, borderLeftWidth: 4 },
   shiftTitle: { fontSize: 16, fontWeight: '700' },
   shiftCount: { color: colors.textSecondary, fontSize: 12 },
-
-  card: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: colors.card,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.xs,
-  },
+  card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.card, padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.xs },
   myCard: { borderWidth: 1, borderColor: colors.primary },
-  
   cardLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  avatar: { 
-    width: 40, height: 40, borderRadius: 20, 
-    backgroundColor: '#334155', 
-    justifyContent: 'center', alignItems: 'center' 
-  },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#334155', justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: 'white', fontWeight: '700', fontSize: 16 },
   empName: { color: colors.text, fontWeight: '600', fontSize: 14 },
   empId: { color: colors.textSecondary, fontSize: 12 },
-
   timeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
   timeText: { fontSize: 12, fontWeight: '700' },
 });

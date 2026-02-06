@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 
@@ -30,6 +31,19 @@ import Loading from './components/common/Loading'
 function App() {
   const { user, loading } = useAuth()
 
+  // ✅ Simple Right-Click Disable Only
+  useEffect(() => {
+    const handleContextMenu = (e) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      window.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -45,11 +59,10 @@ function App() {
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
 
-      {/* Admin & Zitouna Routes */}
       <Route
         path="/admin"
         element={
-          <ProtectedRoute allowedRoles={['admin', 'zitouna']}> {/* ✅ ADDED zitouna */}
+          <ProtectedRoute allowedRoles={['admin', 'zitouna']}>
             <AdminLayout />
           </ProtectedRoute>
         }
@@ -60,13 +73,11 @@ function App() {
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="planning" element={<PlanningPage />} />
         <Route path="presence" element={<AdminPresencePage />} />
-        {/* Only actual admin can see devices page? Or zitouna too? Assuming admin only for security */}
         <Route path="devices" element={
            user?.role === 'admin' ? <DevicesPage /> : <Navigate to="/admin/dashboard" />
         } />
       </Route>
 
-      {/* Employee Routes */}
       <Route
         path="/employee"
         element={

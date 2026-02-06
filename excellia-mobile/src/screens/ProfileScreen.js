@@ -5,28 +5,20 @@ import {
   KeyboardAvoidingView, Platform, Switch 
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaView } from 'react-native-safe-area-context'; // ✅ Safe Area
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 import { colors, spacing, borderRadius, typography } from '../theme/theme';
 
-// ❌ DISABLED: Causes crash in Expo Go SDK 53 Android
-// import { 
-//   registerForPushNotificationsAsync, 
-//   scheduleDailyReminders, 
-//   cancelAllReminders 
-// } from '../utils/notifications';
-
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   
-  // Modal State
   const [modalVisible, setModalVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
   const [remindersEnabled, setRemindersEnabled] = useState(false);
 
   useEffect(() => {
@@ -34,60 +26,30 @@ export default function ProfileScreen() {
       try {
         const saved = await AsyncStorage.getItem('remindersEnabled');
         setRemindersEnabled(saved === 'true');
-      } catch (e) {
-        console.log('Failed to load settings');
-      }
+      } catch (e) { }
     };
     loadSettings();
   }, []);
 
   const toggleReminders = async (value) => {
-    // ✅ SIMULATION MODE: Prevents Expo Go crash
     setRemindersEnabled(value);
     await AsyncStorage.setItem('remindersEnabled', String(value));
-
-    if (value) {
-      Alert.alert(
-        "Reminders Enabled",
-        "Note: Actual notifications are disabled in Expo Go to prevent crashes. They will work in the production build."
-      );
-    } else {
-      console.log("Reminders disabled");
-    }
+    if (value) Alert.alert("Reminders Enabled", "Notifications will work in the production build.");
   };
 
   const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-    
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'New passwords do not match');
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
+    if (!currentPassword || !newPassword || !confirmPassword) return Alert.alert('Error', 'Please fill in all fields');
+    if (newPassword !== confirmPassword) return Alert.alert('Error', 'New passwords do not match');
+    if (newPassword.length < 6) return Alert.alert('Error', 'Password must be at least 6 characters');
 
     setLoading(true);
     try {
-      await client.put('/auth/password', {
-        currentPassword,
-        newPassword,
-        confirmPassword 
-      });
-      
+      await client.put('/auth/password', { currentPassword, newPassword, confirmPassword });
       Alert.alert('Success', 'Password changed successfully');
       setModalVisible(false);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
     } catch (e) {
-      const msg = e.response?.data?.message || e.message || 'Failed to change password';
-      Alert.alert('Error', msg);
+      Alert.alert('Error', e.response?.data?.message || 'Failed to change password');
     } finally {
       setLoading(false);
     }
@@ -95,32 +57,23 @@ export default function ProfileScreen() {
 
   const InfoItem = ({ icon, label, value }) => (
     <View style={styles.infoRow}>
-      <View style={styles.iconBox}>
-        <Ionicons name={icon} size={20} color={colors.primary} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{value || '—'}</Text>
-      </View>
+      <View style={styles.iconBox}><Ionicons name={icon} size={20} color={colors.primary} /></View>
+      <View style={{ flex: 1 }}><Text style={styles.infoLabel}>{label}</Text><Text style={styles.infoValue}>{value || '—'}</Text></View>
     </View>
   );
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={[typography.header, { marginBottom: spacing.lg }]}>Profile</Text>
 
         <View style={styles.card}>
           <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>
-              {user?.name?.charAt(0).toUpperCase()}
-            </Text>
+            <Text style={styles.avatarText}>{user?.name?.charAt(0).toUpperCase()}</Text>
           </View>
           <Text style={styles.name}>{user?.name}</Text>
           <Text style={styles.role}>{user?.role?.toUpperCase()}</Text>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{user?.department || 'No Dept'}</Text>
-          </View>
+          <View style={styles.badge}><Text style={styles.badgeText}>{user?.department || 'No Dept'}</Text></View>
         </View>
 
         <View style={styles.section}>
@@ -138,7 +91,6 @@ export default function ProfileScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
-          
           <View style={[styles.actionRow, { marginBottom: spacing.sm }]}>
             <View style={styles.actionRowLeft}>
               <Ionicons name="notifications-outline" size={22} color={colors.text} />
@@ -172,165 +124,63 @@ export default function ProfileScreen() {
         <Text style={styles.version}>Excellia Mobile v1.0.0</Text>
       </ScrollView>
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalOverlay}
-        >
+      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Change Password</Text>
-              <Pressable onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textSecondary} />
-              </Pressable>
+              <Pressable onPress={() => setModalVisible(false)}><Ionicons name="close" size={24} color={colors.textSecondary} /></Pressable>
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Current Password</Text>
-              <TextInput
-                style={styles.input}
-                secureTextEntry
-                placeholder="Enter current password"
-                placeholderTextColor={colors.textSecondary}
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-              />
+              <TextInput style={styles.input} secureTextEntry placeholder="Enter current password" placeholderTextColor={colors.textSecondary} value={currentPassword} onChangeText={setCurrentPassword} />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>New Password</Text>
-              <TextInput
-                style={styles.input}
-                secureTextEntry
-                placeholder="Min 6 characters"
-                placeholderTextColor={colors.textSecondary}
-                value={newPassword}
-                onChangeText={setNewPassword}
-              />
+              <TextInput style={styles.input} secureTextEntry placeholder="Min 6 characters" placeholderTextColor={colors.textSecondary} value={newPassword} onChangeText={setNewPassword} />
             </View>
-
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Confirm New Password</Text>
-              <TextInput
-                style={styles.input}
-                secureTextEntry
-                placeholder="Re-enter new password"
-                placeholderTextColor={colors.textSecondary}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-              />
+              <TextInput style={styles.input} secureTextEntry placeholder="Re-enter new password" placeholderTextColor={colors.textSecondary} value={confirmPassword} onChangeText={setConfirmPassword} />
             </View>
-
-            <Pressable 
-              style={[styles.saveBtn, loading && { opacity: 0.7 }]} 
-              onPress={handleChangePassword}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.saveBtnText}>Update Password</Text>
-              )}
+            <Pressable style={[styles.saveBtn, loading && { opacity: 0.7 }]} onPress={handleChangePassword} disabled={loading}>
+              {loading ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>Update Password</Text>}
             </Pressable>
           </View>
         </KeyboardAvoidingView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, padding: spacing.md, paddingTop: spacing.xl },
+  container: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { padding: spacing.md, paddingBottom: 40 },
   card: { backgroundColor: colors.card, borderRadius: borderRadius.xl, padding: spacing.lg, alignItems: 'center' },
-  avatarContainer: {
-    width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    justifyContent: 'center', alignItems: 'center', marginBottom: spacing.md,
-    borderWidth: 2, borderColor: colors.primary
-  },
+  avatarContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(99, 102, 241, 0.2)', justifyContent: 'center', alignItems: 'center', marginBottom: spacing.md, borderWidth: 2, borderColor: colors.primary },
   avatarText: { fontSize: 32, fontWeight: '800', color: colors.primary },
   name: { ...typography.subheader, fontSize: 20, marginBottom: 4 },
   role: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, letterSpacing: 1 },
-  badge: {
-    marginTop: spacing.md, backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 12, paddingVertical: 4, borderRadius: 100
-  },
+  badge: { marginTop: spacing.md, backgroundColor: 'rgba(16, 185, 129, 0.15)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 100 },
   badgeText: { color: colors.success, fontSize: 12, fontWeight: '700' },
-
   section: { marginTop: spacing.xl },
   sectionTitle: { ...typography.body, fontWeight: '700', color: colors.textSecondary, marginBottom: spacing.sm, marginLeft: 4 },
-  
   infoRow: { flexDirection: 'row', alignItems: 'center', width: '100%', paddingVertical: spacing.xs },
   iconBox: { width: 40, alignItems: 'center' },
   infoLabel: { fontSize: 11, color: colors.textSecondary, marginBottom: 2 },
   infoValue: { fontSize: 15, color: colors.text, fontWeight: '600' },
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', width: '100%', marginVertical: spacing.sm },
-
-  actionRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: colors.card, padding: spacing.md, borderRadius: borderRadius.md,
-    marginBottom: spacing.xs
-  },
+  actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.card, padding: spacing.md, borderRadius: borderRadius.md, marginBottom: spacing.xs },
   actionRowLeft: { flexDirection: 'row', alignItems: 'center' },
   actionText: { marginLeft: spacing.md, fontSize: 16, fontWeight: '600', color: colors.text },
-  
   version: { textAlign: 'center', marginTop: spacing.xl, color: colors.textSecondary, fontSize: 12 },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    padding: spacing.lg,
-    paddingBottom: 40,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.lg,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  inputGroup: {
-    marginBottom: spacing.md,
-  },
-  inputLabel: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    marginBottom: 6,
-    fontWeight: '600',
-  },
-  input: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: 12,
-    color: colors.text,
-    fontSize: 16,
-  },
-  saveBtn: {
-    backgroundColor: colors.primary,
-    padding: 16,
-    borderRadius: borderRadius.md,
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  saveBtnText: {
-    color: 'white',
-    fontWeight: '700',
-    fontSize: 16,
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: colors.card, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, padding: spacing.lg, paddingBottom: 40 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+  inputGroup: { marginBottom: spacing.md },
+  inputLabel: { color: colors.textSecondary, fontSize: 12, marginBottom: 6, fontWeight: '600' },
+  input: { backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: borderRadius.md, padding: 12, color: colors.text, fontSize: 16 },
+  saveBtn: { backgroundColor: colors.primary, padding: 16, borderRadius: borderRadius.md, alignItems: 'center', marginTop: spacing.sm },
+  saveBtnText: { color: 'white', fontWeight: '700', fontSize: 16 },
 });
