@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # 1. Database
+  mongo:
+    image: mongo:6.0
+    container_name: excellia-mongo
+    restart: always
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+
+  # 2. Backend API
+  backend:
+    build: ./backend
+    container_name: excellia-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongo:27017/excellia
+      - JWT_SECRET=62c52c0bec202ee2a6c98cff68c2bde4b7f27fc2e372b076d35f2fe7b2568131584d8017269ce40e514e89d52c140b91af80480c59a91d7ab6e13caa40099b98
+      - CORS_ORIGIN=https://172.26.10.81
+      # Geofencing
+      - COMPANY_LAT=36.840949
+      - COMPANY_LNG=10.296179
+      - CHECKIN_RADIUS_METERS=500
+      - REQUIRE_GEOFENCE=true
+    volumes:
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      - mongo
+
+  # 3. Frontend Web
+  frontend:
+    build:
+      context: ./excellia-frontend
+      args:
+        - VITE_API_URL=https://172.26.10.81/api
+    container_name: excellia-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  mongo-data:
