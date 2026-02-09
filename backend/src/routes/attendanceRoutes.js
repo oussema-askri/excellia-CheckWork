@@ -4,7 +4,9 @@ const router = express.Router();
 const {
   checkIn,
   checkOut,
-  markAbsent, // ✅ Ensure this is imported
+  markAbsent,
+  approveAbsence,
+  rejectAbsence,
   getTodayAttendance,
   getMyAttendance,
   getAllAttendance,
@@ -28,20 +30,21 @@ const {
 
 router.use(protect);
 
-// Employee routes
 router.post('/check-in', checkInValidator, validate, checkIn);
 router.post('/check-out', checkOutValidator, validate, checkOut);
-router.post('/absent', markAbsent); // ✅ NEW ROUTE ADDED HERE
+router.post('/absent', markAbsent);
 router.get('/today', getTodayAttendance);
 router.get('/my', listAttendanceValidator, validate, getMyAttendance);
 
-// Zitouna + Admin views
 router.get('/', authorize('admin', 'zitouna'), listAttendanceValidator, validate, getAllAttendance);
 router.get('/stats', authorize('admin', 'zitouna'), getAttendanceStats);
 router.get('/report', authorize('admin', 'zitouna'), getAttendanceReport);
 router.get('/user/:id', authorize('admin', 'zitouna'), getUserAttendance);
 
-// Admin Only Write
+// ✅ Approve/Reject Routes (Admin Only)
+router.put('/:id/approve', adminOnly, approveAbsence);
+router.put('/:id/reject', adminOnly, rejectAbsence);
+
 router.route('/:id')
   .put(adminOnly, updateAttendanceValidator, validate, updateAttendance)
   .delete(adminOnly, attendanceIdValidator, validate, deleteAttendance);

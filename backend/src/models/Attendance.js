@@ -22,7 +22,7 @@ const attendanceSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: {
-      values: ['present', 'absent', 'late', 'half-day', 'on-leave'],
+      values: ['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence'],
       message: 'Invalid status value'
     },
     default: 'present'
@@ -58,13 +58,11 @@ const attendanceSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Indexes
 attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1 });
 attendanceSchema.index({ status: 1 });
 
-// Pre-save middleware - ASYNC WITHOUT next()
-attendanceSchema.pre('save', async function() {
+attendanceSchema.pre('save', function(next) {
   if (this.checkIn && this.checkOut) {
     const checkInTime = dayjs(this.checkIn);
     const checkOutTime = dayjs(this.checkOut);
@@ -75,24 +73,21 @@ attendanceSchema.pre('save', async function() {
       this.overtimeHours = parseFloat((this.workHours - 8).toFixed(2));
     }
   }
+  next();
 });
 
-// Virtual for formatted date
 attendanceSchema.virtual('formattedDate').get(function() {
   return dayjs(this.date).format('YYYY-MM-DD');
 });
 
-// Virtual for formatted check-in time
 attendanceSchema.virtual('formattedCheckIn').get(function() {
   return this.checkIn ? dayjs(this.checkIn).format('HH:mm:ss') : null;
 });
 
-// Virtual for formatted check-out time
 attendanceSchema.virtual('formattedCheckOut').get(function() {
   return this.checkOut ? dayjs(this.checkOut).format('HH:mm:ss') : null;
 });
 
-// Static method to get today's attendance for a user
 attendanceSchema.statics.getTodayAttendance = async function(userId) {
   const startOfDay = dayjs().startOf('day').toDate();
   const endOfDay = dayjs().endOf('day').toDate();
@@ -103,7 +98,6 @@ attendanceSchema.statics.getTodayAttendance = async function(userId) {
   }).populate('userId', 'name employeeId email');
 };
 
-// Static method to get attendance by date range
 attendanceSchema.statics.getByDateRange = async function(userId, startDate, endDate) {
   const query = {
     date: {
@@ -112,9 +106,7 @@ attendanceSchema.statics.getByDateRange = async function(userId, startDate, endD
     }
   };
   
-  if (userId) {
-    query.userId = userId;
-  }
+  if (userId) query.userId = userId;
   
   return this.find(query)
     .populate('userId', 'name employeeId email department')
@@ -122,5 +114,4 @@ attendanceSchema.statics.getByDateRange = async function(userId, startDate, endD
 };
 
 const Attendance = mongoose.model('Attendance', attendanceSchema);
-
 module.exports = Attendance;

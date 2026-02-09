@@ -2,12 +2,11 @@ const dayjs = require('dayjs');
 const Attendance = require('../models/Attendance');
 const ApiError = require('../utils/ApiError');
 const { distanceMeters } = require('../utils/geo');
-const { getDateBounds, getMonthBounds } = require('../utils/helpers');
+const { getDateBounds } = require('../utils/helpers');
 const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES } = require('../utils/constants');
 
 class AttendanceService {
   static async checkIn(userId, location = null, notes = '') {
-    // 1) Geofence validation
     const requireGeo = String(process.env.REQUIRE_GEOFENCE || 'false') === 'true';
 
     if (requireGeo) {
@@ -39,9 +38,8 @@ class AttendanceService {
       date: { $gte: start, $lte: end }
     });
 
-    // ✅ Block if already marked absent
-    if (attendance && attendance.status === ATTENDANCE_STATUS.ABSENT) {
-      throw ApiError.badRequest('You are marked as ABSENT today. Cannot check in.');
+    if (attendance && (attendance.status === ATTENDANCE_STATUS.ABSENT || attendance.status === ATTENDANCE_STATUS.PENDING_ABSENCE)) {
+      throw ApiError.badRequest('You have marked absence for today. Cannot check in.');
     }
 
     if (attendance && attendance.checkIn) {
@@ -49,15 +47,11 @@ class AttendanceService {
     }
 
     if (!attendance) {
-      attendance = new Attendance({
-        userId,
-        date: start,
-      });
+      attendance = new Attendance({ userId, date: start });
     }
 
     attendance.checkIn = new Date();
     attendance.status = ATTENDANCE_STATUS.PRESENT;
-
     if (notes) attendance.notes = notes;
 
     if (location) {
@@ -88,22 +82,14 @@ class AttendanceService {
       date: { $gte: start, $lte: end }
     });
 
-    if (!attendance) {
-      throw ApiError.badRequest('No check-in found for today');
+    if (!attendance) throw ApiError.badRequest('No check-in found for today');
+
+    if (attendance.status === ATTENDANCE_STATUS.ABSENT || attendance.status === ATTENDANCE_STATUS.PENDING_ABSENCE) {
+      throw ApiError.badRequest('Marked as absent. Cannot check out.');
     }
 
-    // ✅ Block if absent
-    if (attendance.status === ATTENDANCE_STATUS.ABSENT) {
-      throw ApiError.badRequest('You are marked as ABSENT today. Cannot check out.');
-    }
-
-    if (!attendance.checkIn) {
-      throw ApiError.badRequest('Must check in before checking out');
-    }
-
-    if (attendance.checkOut) {
-      throw ApiError.badRequest('Already checked out today');
-    }
+    if (!attendance.checkIn) throw ApiError.badRequest('Must check in before checking out');
+    if (attendance.checkOut) throw ApiError.badRequest('Already checked out today');
 
     attendance.checkOut = new Date();
     
@@ -116,16 +102,13 @@ class AttendanceService {
     }
 
     if (notes) {
-      attendance.notes = attendance.notes 
-        ? `${attendance.notes}; ${notes}` 
-        : notes;
+      attendance.notes = attendance.notes ? `${attendance.notes}; ${notes}` : notes;
     }
 
     await attendance.save();
     return attendance;
   }
 
-  // ✅ Mark Absent
   static async markAbsent(userId, notes = '') {
     const today = new Date();
     const { start, end } = getDateBounds(today);
@@ -140,13 +123,11 @@ class AttendanceService {
         throw new Error('Cannot mark absent: Already checked in today.');
       }
     } else {
-      attendance = new Attendance({
-        userId,
-        date: start,
-      });
+      attendance = new Attendance({ userId, date: start });
     }
 
-    attendance.status = ATTENDANCE_STATUS.ABSENT;
+    // ✅ Set to PENDING
+    attendance.status = ATTENDANCE_STATUS.PENDING_ABSENCE;
     attendance.checkIn = null;
     attendance.checkOut = null;
     if (notes) attendance.notes = notes;
@@ -155,26 +136,39 @@ class AttendanceService {
     return attendance;
   }
 
+  // ✅ Approve Absence
+  static async approveAbsence(attendanceId) {
+    const attendance = await Attendance.findById(attendanceId);
+    if (!attendance) throw ApiError.notFound('Record not found');
+    
+    if (attendance.status !== ATTENDANCE_STATUS.PENDING_ABSENCE) {
+      throw ApiError.badRequest('This record is not pending approval');
+    }
+
+    attendance.status = ATTENDANCE_STATUS.ABSENT;
+    await attendance.save();
+    return attendance;
+  }
+
+  // ✅ Reject Absence
+  static async rejectAbsence(attendanceId) {
+    const attendance = await Attendance.findByIdAndDelete(attendanceId);
+    if (!attendance) throw ApiError.notFound('Record not found');
+    return attendance;
+  }
+
   static async getStats(startDate, endDate) {
     const matchStage = {};
     if (startDate && endDate) {
-      matchStage.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
-      };
+      matchStage.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
     const stats = await Attendance.aggregate([
       { $match: matchStage },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
+      { $group: { _id: '$status', count: { $sum: 1 } } }
     ]);
 
-    const result = { total: 0, present: 0, absent: 0, late: 0, halfDay: 0, onLeave: 0 };
+    const result = { total: 0, present: 0, absent: 0, late: 0, halfDay: 0, onLeave: 0, pending: 0 };
 
     stats.forEach(stat => {
       result.total += stat.count;
@@ -184,6 +178,7 @@ class AttendanceService {
         case 'late': result.late = stat.count; break;
         case 'half-day': result.halfDay = stat.count; break;
         case 'on-leave': result.onLeave = stat.count; break;
+        case 'pending-absence': result.pending = stat.count; break;
       }
     });
 
@@ -196,12 +191,7 @@ class AttendanceService {
     const [stats, recentCheckIns] = await Promise.all([
       Attendance.aggregate([
         { $match: { date: { $gte: start, $lte: end } } },
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
+        { $group: { _id: '$status', count: { $sum: 1 } } }
       ]),
       Attendance.find({ date: { $gte: start, $lte: end } })
         .populate('userId', 'name employeeId department')
@@ -237,6 +227,7 @@ class AttendanceService {
     };
 
     attendances.forEach(att => {
+      if (att.status === 'pending-absence') return; 
       summary[att.status === 'half-day' ? 'halfDay' : att.status === 'on-leave' ? 'onLeave' : att.status]++;
       summary.totalWorkHours += att.workHours || 0;
       summary.totalOvertimeHours += att.overtimeHours || 0;

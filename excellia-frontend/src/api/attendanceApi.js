@@ -41,6 +41,17 @@ export const attendanceApi = {
     return response
   },
 
+  // ✅ New
+  approve: async (id) => {
+    const response = await axios.put(`/attendance/${id}/approve`)
+    return response
+  },
+
+  reject: async (id) => {
+    const response = await axios.put(`/attendance/${id}/reject`)
+    return response
+  },
+
   getStats: async (params = {}) => {
     const response = await axios.get('/attendance/stats', { params })
     return response

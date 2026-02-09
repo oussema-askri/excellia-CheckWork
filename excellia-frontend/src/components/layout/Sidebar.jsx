@@ -5,19 +5,20 @@ import {
   UsersIcon,
   ClockIcon,
   CalendarDaysIcon,
-  DevicePhoneMobileIcon
+  DevicePhoneMobileIcon,
+  InboxStackIcon // ✅ Import icon for Requests
 } from '@heroicons/react/24/outline'
 
 const adminLinks = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
   { name: 'Employees', href: '/admin/employees', icon: UsersIcon },
+  { name: 'Requests', href: '/admin/requests', icon: InboxStackIcon }, // ✅ NEW
   { name: 'Attendance', href: '/admin/attendance', icon: ClockIcon },
   { name: 'Planning', href: '/admin/planning', icon: CalendarDaysIcon },
   { name: 'Feuille de présence', href: '/admin/presence', icon: CalendarDaysIcon },
   { name: 'Devices', href: '/admin/devices', icon: DevicePhoneMobileIcon },
 ]
 
-// Zitouna sees everything except Devices
 const zitounaLinks = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
   { name: 'Employees', href: '/admin/employees', icon: UsersIcon },

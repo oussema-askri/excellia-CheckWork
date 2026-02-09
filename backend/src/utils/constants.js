@@ -3,13 +3,14 @@ module.exports = {
   ROLES: {
     ADMIN: 'admin',
     EMPLOYEE: 'employee',
-    ZITOUNA: 'zitouna' // ✅ NEW ROLE
+    ZITOUNA: 'zitouna'
   },
 
   // Attendance statuses
   ATTENDANCE_STATUS: {
     PRESENT: 'present',
     ABSENT: 'absent',
+    PENDING_ABSENCE: 'pending-absence', // ✅ NEW
     LATE: 'late',
     HALF_DAY: 'half-day',
     ON_LEAVE: 'on-leave'

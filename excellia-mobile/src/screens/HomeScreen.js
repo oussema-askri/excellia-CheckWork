@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native'; // ✅ Import Navigation
+import { useNavigation } from '@react-navigation/native';
 import { attendanceApi } from '../api/attendanceApi';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, borderRadius, typography } from '../theme/theme';
@@ -13,7 +13,7 @@ const LEAVE_REQUEST_URL = 'https://msstn.sharepoint.com/sites/MSSAdminHRTasks/Li
 
 export default function HomeScreen() {
   const { user } = useAuth();
-  const navigation = useNavigation(); // ✅ Hook
+  const navigation = useNavigation();
   const [now, setNow] = useState(dayjs());
   const [today, setToday] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -77,22 +77,19 @@ export default function HomeScreen() {
 
   const checkedIn = !!today?.checkIn;
   const checkedOut = !!today?.checkOut;
+  const isPending = today?.status === 'pending-absence';
+  const isAbsent = today?.status === 'absent';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={typography.caption}>Welcome back,</Text>
             <Text style={typography.header}>{user?.name?.split(' ')[0] || 'Employee'}</Text>
           </View>
-          
-          {/* ✅ Clickable Avatar */}
           <Pressable onPress={() => navigation.navigate('Profile')}>
-            <View style={styles.avatarMini}>
-              <Text style={styles.avatarMiniText}>{user?.name?.charAt(0) || 'U'}</Text>
-            </View>
+            <View style={styles.avatarMini}><Text style={styles.avatarMiniText}>{user?.name?.charAt(0) || 'U'}</Text></View>
           </Pressable>
         </View>
 
@@ -111,18 +108,27 @@ export default function HomeScreen() {
             <View style={styles.statItem}><Text style={styles.statLabel}>Hours</Text><Text style={styles.statValue}>{today?.workHours ? `${today.workHours.toFixed(1)}h` : '--'}</Text></View>
           </View>
 
-          {!checkedOut && !today?.status?.includes('absent') ? (
+          {!checkedOut && !isAbsent && !isPending ? (
             <Pressable style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading && styles.btnDisabled]} onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')} disabled={loading}>
               {loading ? <ActivityIndicator color="white" /> : <><Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} /><Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text></>}
             </Pressable>
-          ) : today?.status === 'absent' ? (
-            <View style={styles.completedContainer}><Ionicons name="alert-circle" size={48} color={colors.danger} /><Text style={[styles.completedText, { color: colors.danger }]}>Marked Absent</Text></View>
+          ) : isPending ? (
+            <View style={[styles.completedContainer, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+              <Ionicons name="time" size={48} color={colors.warning} />
+              <Text style={[styles.completedText, { color: colors.warning }]}>Request Pending</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Waiting for approval</Text>
+            </View>
+          ) : isAbsent ? (
+            <View style={styles.completedContainer}>
+              <Ionicons name="alert-circle" size={48} color={colors.danger} />
+              <Text style={[styles.completedText, { color: colors.danger }]}>Marked Absent</Text>
+            </View>
           ) : (
             <View style={styles.completedContainer}><Ionicons name="checkmark-circle" size={48} color={colors.success} /><Text style={styles.completedText}>Workday Completed</Text></View>
           )}
         </View>
 
-        {!today?.checkIn && today?.status !== 'absent' && (
+        {!today?.checkIn && !isAbsent && !isPending && (
           <Pressable style={styles.absentBtn} onPress={onMarkAbsent} disabled={loading}>
             <Text style={styles.absentText}>I am Absent Today</Text>
             <Ionicons name="open-outline" size={16} color="#ef4444" style={{ marginLeft: 6 }} />
@@ -158,7 +164,7 @@ const styles = StyleSheet.create({
   btnDanger: { backgroundColor: colors.danger },
   btnDisabled: { opacity: 0.7 },
   btnText: { color: 'white', fontSize: 18, fontWeight: '700' },
-  completedContainer: { alignItems: 'center', paddingVertical: spacing.md },
+  completedContainer: { alignItems: 'center', paddingVertical: spacing.md, borderRadius: 12, width: '100%' },
   completedText: { color: colors.success, fontSize: 18, fontWeight: '700', marginTop: spacing.sm },
   infoCard: { flexDirection: 'row', backgroundColor: 'rgba(99, 102, 241, 0.1)', padding: spacing.md, borderRadius: borderRadius.lg, alignItems: 'center', gap: spacing.md, borderWidth: 1, borderColor: 'rgba(99, 102, 241, 0.2)' },
   infoText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 18 },

@@ -2,43 +2,36 @@ import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 
-// Layouts
 import AdminLayout from './components/layout/AdminLayout'
 import EmployeeLayout from './components/layout/EmployeeLayout'
 
-// Auth
 import LoginPage from './pages/auth/LoginPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
-// Admin Pages
 import DashboardPage from './pages/admin/DashboardPage'
 import EmployeesPage from './pages/admin/EmployeesPage'
 import AttendancePage from './pages/admin/AttendancePage'
 import PlanningPage from './pages/admin/PlanningPage'
 import AdminPresencePage from './pages/admin/AdminPresencePage'
 import DevicesPage from './pages/admin/DevicesPage'
+import RequestsPage from './pages/admin/RequestsPage' // ✅ NEW
 
-// Employee Pages
 import EmployeeDashboard from './pages/employee/EmployeeDashboard'
 import MyAttendancePage from './pages/employee/MyAttendancePage'
 import MyPlanningPage from './pages/employee/MyPlanningPage'
 import PresenceSheetPage from './pages/employee/PresenceSheetPage'
 
-// Other
 import NotFoundPage from './pages/NotFoundPage'
 import Loading from './components/common/Loading'
 
 function App() {
   const { user, loading } = useAuth()
 
-  // ✅ Simple Right-Click Disable Only
   useEffect(() => {
     const handleContextMenu = (e) => {
       e.preventDefault();
     };
-
     window.addEventListener('contextmenu', handleContextMenu);
-
     return () => {
       window.removeEventListener('contextmenu', handleContextMenu);
     };
@@ -70,6 +63,7 @@ function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="employees" element={<EmployeesPage />} />
+        <Route path="requests" element={<RequestsPage />} /> {/* ✅ NEW */}
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="planning" element={<PlanningPage />} />
         <Route path="presence" element={<AdminPresencePage />} />
