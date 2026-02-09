@@ -62,8 +62,8 @@ attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1 });
 attendanceSchema.index({ status: 1 });
 
-// ✅ FIXED PRE-SAVE HOOK (Standard function, not async)
-attendanceSchema.pre('save', function(next) {
+// ✅ FIXED: Async Pre-Save Hook (No 'next' parameter)
+attendanceSchema.pre('save', async function() {
   if (this.checkIn && this.checkOut) {
     const checkInTime = dayjs(this.checkIn);
     const checkOutTime = dayjs(this.checkOut);
@@ -74,7 +74,6 @@ attendanceSchema.pre('save', function(next) {
       this.overtimeHours = parseFloat((this.workHours - 8).toFixed(2));
     }
   }
-  next(); // ✅ Correctly called
 });
 
 attendanceSchema.virtual('formattedDate').get(function() {
