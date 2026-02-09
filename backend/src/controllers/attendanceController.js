@@ -30,7 +30,11 @@ const markAbsent = async (req, res, next) => {
     const attendance = await AttendanceService.markAbsent(req.user._id, notes);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Marked as absent (Pending Approval)');
-  } catch (error) { next(error); }
+  } catch (error) { 
+    // If next is not defined here, it means express route handler is broken
+    // But in standard express it is always 3rd arg
+    next(error); 
+  }
 };
 
 const approveAbsence = async (req, res, next) => {

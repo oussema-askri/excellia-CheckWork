@@ -30,64 +30,38 @@ const checkOutValidator = [
 const updateAttendanceValidator = [
   param('id')
     .custom(value => {
-      if (!isValidObjectId(value)) {
-        throw new Error('Invalid attendance ID');
-      }
+      if (!isValidObjectId(value)) throw new Error('Invalid attendance ID');
       return true;
     }),
-  body('checkIn')
-    .optional()
-    .isISO8601().withMessage('Check-in must be a valid date'),
-  body('checkOut')
-    .optional()
-    .isISO8601().withMessage('Check-out must be a valid date'),
+  body('checkIn').optional().isISO8601().withMessage('Check-in must be a valid date'),
+  body('checkOut').optional().isISO8601().withMessage('Check-out must be a valid date'),
   body('status')
     .optional()
-    .isIn(['present', 'absent', 'late', 'half-day', 'on-leave'])
+    .isIn(['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence']) // ✅ Added pending-absence
     .withMessage('Invalid status'),
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters')
+  body('notes').optional().trim().isLength({ max: 500 })
 ];
 
 const listAttendanceValidator = [
-  query('page')
-    .optional()
-    .isInt({ min: 1 }).withMessage('Page must be a positive integer')
-    .toInt(),
-  query('limit')
-    .optional()
-    .isInt({ min: 1, max: 1000 }).withMessage('Limit must be between 1 and 1000')
-    .toInt(),
-  query('startDate')
-    .optional()
-    .isISO8601().withMessage('Start date must be a valid date'),
-  query('endDate')
-    .optional()
-    .isISO8601().withMessage('End date must be a valid date'),
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 1000 }).toInt(),
+  query('startDate').optional().isISO8601(),
+  query('endDate').optional().isISO8601(),
   query('status')
     .optional()
-    .isIn(['present', 'absent', 'late', 'half-day', 'on-leave', ''])
+    .isIn(['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence']) // ✅ Added pending-absence
     .withMessage('Invalid status'),
-  query('userId')
-    .optional()
-    .custom(value => {
-      if (value && !isValidObjectId(value)) {
-        throw new Error('Invalid user ID');
-      }
-      return true;
-    })
+  query('userId').optional().custom(value => {
+    if (value && !isValidObjectId(value)) throw new Error('Invalid user ID');
+    return true;
+  })
 ];
 
 const attendanceIdValidator = [
-  param('id')
-    .custom(value => {
-      if (!isValidObjectId(value)) {
-        throw new Error('Invalid attendance ID');
-      }
-      return true;
-    })
+  param('id').custom(value => {
+    if (!isValidObjectId(value)) throw new Error('Invalid attendance ID');
+    return true;
+  })
 ];
 
 module.exports = {
