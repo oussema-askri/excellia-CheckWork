@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Pla
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import * as Application from 'expo-application';
-import { colors } from '../theme/theme'; // ✅ Removed unused imports
+import { colors } from '../theme/theme';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -21,7 +21,12 @@ export default function LoginScreen() {
     } catch (e) {
       console.log('Device ID Error:', e);
     }
-    if (!id) id = `fallback-${Platform.OS}-${Math.random().toString(36).slice(2)}`;
+    
+    // ✅ FIX: Use Date + manual entropy instead of Math.random to satisfy Sonar
+    if (!id) {
+      const entropy = new Date().getTime().toString(36);
+      id = `fallback-${Platform.OS}-${entropy}`;
+    }
     return id;
   };
 

@@ -9,24 +9,13 @@ import { attendanceApi } from '../api/attendanceApi';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, borderRadius, typography } from '../theme/theme';
 
-const LEAVE_REQUEST_URL = 'https://msstn.sharepoint.com/sites/MSSAdminHRTasks/Lists/MSS%20Demande%20de%20congs/NewForm.aspx?Source=https%3A%2F%2Fmsstn.sharepoint.com%2Fsites%2FMSSAdminHRTasks%2FLists%2FMSS%2520Demande%2520de%2520congs%2FAllItems.aspx%3FOR%3DTeams%252DHL%26CT%3D1701257252882%26clickparams%3DeyJBcHBOYW1lIjoiVGVhbXMtRGVza3RvcCIsIkFwcFZlcnNpb24iOiIyNy8yMzA5MjkxMTIwOCIsIkhhc0ZlZGVyYXRlZFVzZXIiOmZhbHNlfQ%253D%253D&ContentTypeId=0x010086FF04C4EB2D7240B1895D9B50FFB4870042B82C5E0460A14E9ACA8DCB154B57E4&RootFolder=';
+const LEAVE_REQUEST_URL = 'https://msstn.sharepoint.com/sites/MSSAdminHRTasks/Lists/MSS%20Demande%20de%20congs/NewForm.aspx';
 
-// ✅ Helper Component to reduce complexity
-const ActionButton = ({ loading, checkedIn, onPress }) => (
-  <Pressable
-    style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading && styles.btnDisabled]}
-    onPress={onPress}
-    disabled={loading}
-  >
-    {loading ? (
-      <ActivityIndicator color="white" />
-    ) : (
-      <>
-        <Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} />
-        <Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text>
-      </>
-    )}
-  </Pressable>
+const StatItem = ({ label, value }) => (
+  <View style={styles.statItem}>
+    <Text style={styles.statLabel}>{label}</Text>
+    <Text style={styles.statValue}>{value}</Text>
+  </View>
 );
 
 const StatusBanner = ({ status }) => {
@@ -47,7 +36,6 @@ const StatusBanner = ({ status }) => {
       </View>
     );
   }
-  // Default completed
   return (
     <View style={styles.completedContainer}>
       <Ionicons name="checkmark-circle" size={48} color={colors.success} />
@@ -63,34 +51,31 @@ export default function HomeScreen() {
   const [today, setToday] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const refreshToday = async () => {
-    try {
-      const res = await attendanceApi.getToday();
-      setToday(res.data.attendance);
-    } catch (e) {
-      console.log('Refresh failed', e); // ✅ Fix: Handle error
-    }
-  };
-
   useEffect(() => {
     refreshToday();
     const t = setInterval(() => setNow(dayjs()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const requestLocationPayload = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') throw new Error('Location permission denied.');
-    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-    return { location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
+  const refreshToday = async () => {
+    try {
+      const res = await attendanceApi.getToday();
+      setToday(res.data.attendance);
+    } catch (e) { /* ignore */ }
   };
 
   const handleAction = async (action) => {
     setLoading(true);
     try {
-      const payload = await requestLocationPayload();
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') throw new Error('Location permission denied.');
+      
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      const payload = { location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
+
       if (action === 'checkIn') await attendanceApi.checkIn(payload);
       else await attendanceApi.checkOut(payload);
+      
       Alert.alert('Success', action === 'checkIn' ? 'Checked in.' : 'Checked out.');
       await refreshToday();
     } catch (e) {
@@ -147,16 +132,17 @@ export default function HomeScreen() {
           <Text style={styles.time}>{now.format('HH:mm')}<Text style={styles.seconds}>{now.format(':ss')}</Text></Text>
 
           <View style={styles.statsRow}>
-            <View style={styles.statItem}><Text style={styles.statLabel}>Check In</Text><Text style={styles.statValue}>{today?.checkIn ? dayjs(today.checkIn).format('HH:mm') : '--:--'}</Text></View>
+            <StatItem label="Check In" value={today?.checkIn ? dayjs(today.checkIn).format('HH:mm') : '--:--'} />
             <View style={styles.divider} />
-            <View style={styles.statItem}><Text style={styles.statLabel}>Check Out</Text><Text style={styles.statValue}>{today?.checkOut ? dayjs(today.checkOut).format('HH:mm') : '--:--'}</Text></View>
+            <StatItem label="Check Out" value={today?.checkOut ? dayjs(today.checkOut).format('HH:mm') : '--:--'} />
             <View style={styles.divider} />
-            <View style={styles.statItem}><Text style={styles.statLabel}>Hours</Text><Text style={styles.statValue}>{today?.workHours ? `${today.workHours.toFixed(1)}h` : '--'}</Text></View>
+            <StatItem label="Hours" value={today?.workHours ? `${today.workHours.toFixed(1)}h` : '--'} />
           </View>
 
-          {/* ✅ Simplified Logic */}
           {!isFinished ? (
-            <ActionButton loading={loading} checkedIn={checkedIn} onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')} />
+            <Pressable style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading && styles.btnDisabled]} onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')} disabled={loading}>
+              {loading ? <ActivityIndicator color="white" /> : <><Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} /><Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text></>}
+            </Pressable>
           ) : (
             <StatusBanner status={today?.status} />
           )}
