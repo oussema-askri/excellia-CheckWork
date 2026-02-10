@@ -33,7 +33,14 @@ function getShiftIndex(shiftStr) {
   return null;
 }
 
-// Helper: Determine headers position
+// Fixed time rules
+function fixedTimeByShift(shiftIndex, isWeekend) {
+  if (shiftIndex === 0) return '08:00h-16:00h';
+  if (shiftIndex === 1) return isWeekend ? '16:00h-00:00h' : '18h-01h';
+  if (shiftIndex === 2) return isWeekend ? '00:00h-08:00h' : '01:00h-08:00h';
+  return '';
+}
+
 async function findHeaders(sheet) {
   const used = sheet.usedRange();
   if (!used) throw ApiError.badRequest('Template sheet appears empty.');
@@ -47,20 +54,15 @@ async function findHeaders(sheet) {
       if (typeof v !== 'string') continue;
 
       if (v.trim() === 'Date') {
-        let dateCol = null;
-        let tasksCol = null;
-        let timeCol = null;
-
+        let dateCol, tasksCol, timeCol;
         for (let cc = 1; cc <= maxCol; cc++) {
           const vv = sheet.cell(r, cc).value();
           if (typeof vv !== 'string') continue;
           const tt = vv.trim();
-
           if (tt === 'Date') dateCol = cc;
           if (tt === 'Tâches et livrables') tasksCol = cc;
           if (tt === 'Temps') timeCol = cc;
         }
-
         if (dateCol && tasksCol && timeCol) {
           return { headerRow: r, dateCol, tasksCol, timeCol, maxRow, maxCol };
         }
@@ -74,7 +76,6 @@ async function setLabelValueRight(sheet, labelText, valueToSet) {
   const used = sheet.usedRange();
   const maxRow = used.endCell().rowNumber();
   const maxCol = used.endCell().columnNumber();
-
   for (let r = 1; r <= maxRow; r++) {
     for (let c = 1; c <= maxCol; c++) {
       const v = sheet.cell(r, c).value();
@@ -91,11 +92,8 @@ async function setSignaturePrestataireBelow(sheet, fullName) {
   const used = sheet.usedRange();
   const maxRow = used.endCell().rowNumber();
   const maxCol = used.endCell().columnNumber();
-
   for (let r = 1; r <= maxRow; r++) {
-    let prestataireCol = null;
-    let hasResponsableHeader = false;
-
+    let prestataireCol, hasResponsableHeader;
     for (let c = 1; c <= maxCol; c++) {
       const v = sheet.cell(r, c).value();
       if (typeof v === 'string') {
@@ -104,7 +102,6 @@ async function setSignaturePrestataireBelow(sheet, fullName) {
         if (t === 'Responsable suivi de mission') hasResponsableHeader = true;
       }
     }
-
     if (prestataireCol && hasResponsableHeader) {
       sheet.cell(r + 1, prestataireCol).value(fullName);
       return true;
@@ -134,9 +131,10 @@ async function buildMonthMaps(user, year, month) {
   return { attendanceByDay, planningByDay, daysInMonth: dayjs(start).daysInMonth() };
 }
 
-// ✅ NEW: Helper to fill a single row logic (Reduces complexity)
-function fillRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, daysInMonth, attendanceByDay, planningByDay }) {
-  // Clear if out of bounds
+// ✅ FIX: Extracted function to reduce Cognitive Complexity
+function processRow(sheet, r, params) {
+  const { dateCol, tasksCol, timeCol, dayNum, year, month, daysInMonth, attendanceByDay, planningByDay } = params;
+
   if (dayNum > daysInMonth) {
     sheet.cell(r, dateCol).value('');
     sheet.cell(r, tasksCol).value('');
@@ -144,7 +142,6 @@ function fillRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, da
     return;
   }
 
-  // Date Logic
   const dateObj = dayjs(`${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`);
   const dayName = capitalizeFirst(dateObj.format('dddd'));
   const isWeekend = [0, 6].includes(dateObj.day());
@@ -152,22 +149,25 @@ function fillRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, da
   if (isWeekend) dateLabel += ` (${dayName})`;
   sheet.cell(r, dateCol).value(dateLabel);
 
-  // Task & Time Logic
   const p = planningByDay.get(dayNum);
   const a = attendanceByDay.get(dayNum);
   const shiftIndex = getShiftIndex(p?.shift);
 
-  if (a && a.status === 'absent') {
+  if (!a) {
+    sheet.cell(r, tasksCol).value('');
+    sheet.cell(r, timeCol).value('');
+    return;
+  }
+
+  if (a.status === 'absent') {
     sheet.cell(r, tasksCol).value('Absent');
     sheet.cell(r, timeCol).value('');
     return;
   }
 
-  // Real Time
-  const realTime = a ? formatRealTimeRange(a.checkIn, a.checkOut) : '';
+  const realTime = formatRealTimeRange(a.checkIn, a.checkOut);
   sheet.cell(r, timeCol).value(realTime);
 
-  // Task
   if (shiftIndex === null) {
     sheet.cell(r, tasksCol).value('');
   } else {
@@ -180,29 +180,18 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
   const wb = await XlsxPopulate.fromFileAsync(TEMPLATE_PATH);
   const sheet = wb.sheet(0);
 
-  // Top Info
   await setLabelValueRight(sheet, 'Prestataire', user.name);
   const period = capitalizeFirst(dayjs(`${year}-${String(month).padStart(2, '0')}-01`).format('MMMM YYYY'));
   await setLabelValueRight(sheet, 'Période objet de la facturation', period);
-
-  // Bottom Info
   await setSignaturePrestataireBelow(sheet, user.name);
 
-  // Data
   const { headerRow, dateCol, tasksCol, timeCol, maxRow } = await findHeaders(sheet);
   const { attendanceByDay, planningByDay, daysInMonth } = await buildMonthMaps(user, year, month);
 
-  // Loop
   for (let r = headerRow + 1; r <= maxRow; r++) {
     const dayNum = r - headerRow; 
     if (dayNum > 31) break;
-
-    // ✅ Delegate logic to helper to satisfy Sonar
-    fillRow(sheet, r, {
-      dateCol, tasksCol, timeCol,
-      dayNum, year, month, daysInMonth,
-      attendanceByDay, planningByDay
-    });
+    processRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, daysInMonth, attendanceByDay, planningByDay });
   }
 
   return wb.outputAsync();

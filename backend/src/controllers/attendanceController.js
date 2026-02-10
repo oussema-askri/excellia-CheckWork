@@ -5,8 +5,13 @@ const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../utils/constants');
 const dayjs = require('dayjs');
 
-// Strict Sanitizer
+// Helper: Sanitize Strings
 const cleanStr = (val) => (val ? String(val).trim() : undefined);
+
+// Helper: Escape Regex characters (Fixes ReDoS Vulnerability)
+const escapeRegex = (str) => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
 
 const checkIn = async (req, res, next) => {
   try {
@@ -124,8 +129,8 @@ const getAllAttendance = async (req, res, next) => {
     let total;
 
     if (department) {
-      // Use exact match or simple regex after cleaning to avoid injection
-      const safeDeptRegex = new RegExp(`^${department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+      // ✅ FIX: Escape special regex characters to prevent ReDoS
+      const safeDeptRegex = new RegExp(`^${escapeRegex(department)}`, 'i');
       
       const pipeline = [
         { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
@@ -135,8 +140,8 @@ const getAllAttendance = async (req, res, next) => {
         { $facet: { data: [{ $skip: skip }, { $limit: limit }], count: [{ $count: 'total' }] } }
       ];
       const result = await Attendance.aggregate(pipeline);
-      attendances = result[0].data;
-      total = result[0].count[0]?.total || 0;
+      attendances = result[0]?.data || [];
+      total = result[0]?.count[0]?.total || 0;
     } else {
       [attendances, total] = await Promise.all([
         Attendance.find(query).populate('userId', 'name employeeId email department').sort({ date: -1 }).skip(skip).limit(limit),

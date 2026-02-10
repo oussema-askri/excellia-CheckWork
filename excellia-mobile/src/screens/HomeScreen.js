@@ -8,6 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { attendanceApi } from '../api/attendanceApi';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, borderRadius, typography } from '../theme/theme';
+import PropTypes from 'prop-types'; // ✅ FIX: Added prop-types
 
 const LEAVE_REQUEST_URL = 'https://msstn.sharepoint.com/sites/MSSAdminHRTasks/Lists/MSS%20Demande%20de%20congs/NewForm.aspx';
 
@@ -17,6 +18,38 @@ const StatItem = ({ label, value }) => (
     <Text style={styles.statValue}>{value}</Text>
   </View>
 );
+
+StatItem.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.string.isRequired,
+};
+
+const ActionButton = ({ loading, checkedIn, onPress }) => (
+  <Pressable
+    style={[
+      styles.actionBtn,
+      checkedIn ? styles.btnDanger : styles.btnSuccess,
+      loading ? styles.btnDisabled : {}
+    ]}
+    onPress={onPress}
+    disabled={loading}
+  >
+    {loading ? (
+      <ActivityIndicator color="white" />
+    ) : (
+      <>
+        <Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} />
+        <Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text>
+      </>
+    )}
+  </Pressable>
+);
+
+ActionButton.propTypes = {
+  loading: PropTypes.bool.isRequired,
+  checkedIn: PropTypes.bool.isRequired,
+  onPress: PropTypes.func.isRequired,
+};
 
 const StatusBanner = ({ status }) => {
   if (status === 'pending-absence') {
@@ -44,6 +77,10 @@ const StatusBanner = ({ status }) => {
   );
 };
 
+StatusBanner.propTypes = {
+  status: PropTypes.string,
+};
+
 export default function HomeScreen() {
   const { user } = useAuth();
   const navigation = useNavigation();
@@ -61,7 +98,9 @@ export default function HomeScreen() {
     try {
       const res = await attendanceApi.getToday();
       setToday(res.data.attendance);
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.log(e);
+    }
   };
 
   const handleAction = async (action) => {
@@ -111,6 +150,20 @@ export default function HomeScreen() {
   const checkedOut = !!today?.checkOut;
   const isFinished = checkedOut || today?.status === 'absent' || today?.status === 'pending-absence';
 
+  // ✅ FIX: Removed nested ternary logic
+  let renderAction;
+  if (!isFinished) {
+    renderAction = (
+      <ActionButton
+        loading={loading}
+        checkedIn={checkedIn}
+        onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')}
+      />
+    );
+  } else {
+    renderAction = <StatusBanner status={today?.status} />;
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -139,13 +192,7 @@ export default function HomeScreen() {
             <StatItem label="Hours" value={today?.workHours ? `${today.workHours.toFixed(1)}h` : '--'} />
           </View>
 
-          {!isFinished ? (
-            <Pressable style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading && styles.btnDisabled]} onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')} disabled={loading}>
-              {loading ? <ActivityIndicator color="white" /> : <><Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} /><Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text></>}
-            </Pressable>
-          ) : (
-            <StatusBanner status={today?.status} />
-          )}
+          {renderAction}
         </View>
 
         {!isFinished && !checkedIn && (
