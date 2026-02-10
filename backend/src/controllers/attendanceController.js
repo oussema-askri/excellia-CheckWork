@@ -4,14 +4,11 @@ const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../utils/constants');
 const dayjs = require('dayjs');
+// ✅ FIX: Import trusted library for Regex sanitization
+const escapeStringRegexp = require('escape-string-regexp');
 
 // Helper: Sanitize Strings
 const cleanStr = (val) => (val ? String(val).trim() : undefined);
-
-// Helper: Escape Regex characters (Fixes ReDoS Vulnerability)
-const escapeRegex = (str) => {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-};
 
 const checkIn = async (req, res, next) => {
   try {
@@ -129,8 +126,9 @@ const getAllAttendance = async (req, res, next) => {
     let total;
 
     if (department) {
-      // ✅ FIX: Escape special regex characters to prevent ReDoS
-      const safeDeptRegex = new RegExp(`^${escapeRegex(department)}`, 'i');
+      // ✅ FIX: Use escapeStringRegexp to sanitize user input before creating RegExp
+      // This satisfies SonarQube's security rule against ReDoS
+      const safeDeptRegex = new RegExp(`^${escapeStringRegexp(department)}`, 'i');
       
       const pipeline = [
         { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
