@@ -20,6 +20,7 @@ export default function RequestsPage() {
       })
       setRequests(response.data || [])
     } catch (error) {
+      console.error(error) // ✅ Fix: Handle error
       toast.error('Failed to fetch requests')
     } finally {
       setLoading(false)
@@ -33,7 +34,10 @@ export default function RequestsPage() {
       await attendanceApi.approve(id)
       toast.success('Approved')
       fetchRequests()
-    } catch (e) { toast.error('Failed to approve') }
+    } catch (e) { 
+      console.error(e) // ✅ Fix
+      toast.error('Failed to approve') 
+    }
   }
 
   const handleReject = async (id) => {
@@ -41,7 +45,10 @@ export default function RequestsPage() {
       await attendanceApi.reject(id)
       toast.success('Rejected')
       fetchRequests()
-    } catch (e) { toast.error('Failed to reject') }
+    } catch (e) { 
+      console.error(e) // ✅ Fix
+      toast.error('Failed to reject') 
+    }
   }
 
   const columns = [
@@ -63,7 +70,7 @@ export default function RequestsPage() {
       ),
     },
     {
-      header: 'Reason (Notes)',
+      header: 'Reason',
       render: (row) => (
         <span className="text-sm text-gray-600 dark:text-gray-400 italic">
           {row.notes || '—'}

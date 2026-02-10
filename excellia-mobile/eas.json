@@ -1,7 +1,6 @@
 {
   "cli": {
-    "version": ">= 5.0.0",
-    "appVersionSource": "local"
+    "version": ">= 7.0.0"
   },
   "build": {
     "development": {
@@ -9,9 +8,14 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal",
       "android": {
         "buildType": "apk"
+      }
+    },
+    "apk": {
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {

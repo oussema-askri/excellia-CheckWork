@@ -22,7 +22,8 @@ const userSchema = new mongoose.Schema({
     unique: true,
     lowercase: true,
     trim: true,
-    match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
+    // ✅ FIX: Safer Email Regex to prevent ReDoS
+    match: [/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Please enter a valid email']
   },
   password: {
     type: String,
@@ -33,8 +34,8 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: {
-      values: ['admin', 'employee', 'zitouna'], // ✅ Added 'zitouna'
-      message: 'Role must be either admin or employee'
+      values: ['admin', 'employee', 'zitouna'],
+      message: 'Role must be either admin, employee or zitouna'
     },
     default: 'employee'
   },
@@ -45,7 +46,6 @@ const userSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   lastLogin: { type: Date, default: null },
   
-  // ✅ Device Lock Field
   trustedDeviceId: { type: String, default: null, select: false } 
 
 }, {
@@ -54,12 +54,10 @@ const userSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Indexes
 userSchema.index({ role: 1 });
 userSchema.index({ isActive: 1 });
 userSchema.index({ department: 1 });
 
-// ✅ FIXED: removed 'next' parameter because it's async
 userSchema.pre('save', async function() {
   if (!this.isModified('password')) return;
   try {

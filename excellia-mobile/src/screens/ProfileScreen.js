@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, Text, StyleSheet, Pressable, ScrollView, 
-  Modal, TextInput, ActivityIndicator, Alert, 
-  KeyboardAvoidingView, Platform, Switch 
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Switch } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context'; // ✅ Safe Area
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
@@ -26,7 +22,7 @@ export default function ProfileScreen() {
       try {
         const saved = await AsyncStorage.getItem('remindersEnabled');
         setRemindersEnabled(saved === 'true');
-      } catch (e) { }
+      } catch (e) { console.log(e); } // ✅ Fix: Catch error
     };
     loadSettings();
   }, []);

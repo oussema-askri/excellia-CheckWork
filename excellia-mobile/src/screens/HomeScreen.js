@@ -11,6 +11,51 @@ import { colors, spacing, borderRadius, typography } from '../theme/theme';
 
 const LEAVE_REQUEST_URL = 'https://msstn.sharepoint.com/sites/MSSAdminHRTasks/Lists/MSS%20Demande%20de%20congs/NewForm.aspx?Source=https%3A%2F%2Fmsstn.sharepoint.com%2Fsites%2FMSSAdminHRTasks%2FLists%2FMSS%2520Demande%2520de%2520congs%2FAllItems.aspx%3FOR%3DTeams%252DHL%26CT%3D1701257252882%26clickparams%3DeyJBcHBOYW1lIjoiVGVhbXMtRGVza3RvcCIsIkFwcFZlcnNpb24iOiIyNy8yMzA5MjkxMTIwOCIsIkhhc0ZlZGVyYXRlZFVzZXIiOmZhbHNlfQ%253D%253D&ContentTypeId=0x010086FF04C4EB2D7240B1895D9B50FFB4870042B82C5E0460A14E9ACA8DCB154B57E4&RootFolder=';
 
+// ✅ Helper Component to reduce complexity
+const ActionButton = ({ loading, checkedIn, onPress }) => (
+  <Pressable
+    style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading && styles.btnDisabled]}
+    onPress={onPress}
+    disabled={loading}
+  >
+    {loading ? (
+      <ActivityIndicator color="white" />
+    ) : (
+      <>
+        <Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} />
+        <Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text>
+      </>
+    )}
+  </Pressable>
+);
+
+const StatusBanner = ({ status }) => {
+  if (status === 'pending-absence') {
+    return (
+      <View style={[styles.completedContainer, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+        <Ionicons name="time" size={48} color={colors.warning} />
+        <Text style={[styles.completedText, { color: colors.warning }]}>Request Pending</Text>
+        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Waiting for approval</Text>
+      </View>
+    );
+  }
+  if (status === 'absent') {
+    return (
+      <View style={styles.completedContainer}>
+        <Ionicons name="alert-circle" size={48} color={colors.danger} />
+        <Text style={[styles.completedText, { color: colors.danger }]}>Marked Absent</Text>
+      </View>
+    );
+  }
+  // Default completed
+  return (
+    <View style={styles.completedContainer}>
+      <Ionicons name="checkmark-circle" size={48} color={colors.success} />
+      <Text style={styles.completedText}>Workday Completed</Text>
+    </View>
+  );
+};
+
 export default function HomeScreen() {
   const { user } = useAuth();
   const navigation = useNavigation();
@@ -22,7 +67,9 @@ export default function HomeScreen() {
     try {
       const res = await attendanceApi.getToday();
       setToday(res.data.attendance);
-    } catch (e) {}
+    } catch (e) {
+      console.log('Refresh failed', e); // ✅ Fix: Handle error
+    }
   };
 
   useEffect(() => {
@@ -53,8 +100,15 @@ export default function HomeScreen() {
     }
   };
 
+  const confirmAction = (action) => {
+    Alert.alert(action === 'checkIn' ? 'Check In' : 'Check Out', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Confirm', onPress: () => handleAction(action) }
+    ]);
+  };
+
   const onMarkAbsent = async () => {
-    Alert.alert('Confirm Absence', 'Mark yourself absent and open leave request form?', [
+    Alert.alert('Confirm Absence', 'Mark yourself absent?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Confirm', style: 'destructive', onPress: async () => {
           setLoading(true);
@@ -68,17 +122,9 @@ export default function HomeScreen() {
     ]);
   };
 
-  const confirmAction = (action) => {
-    Alert.alert(action === 'checkIn' ? 'Check In' : 'Check Out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm', onPress: () => handleAction(action) }
-    ]);
-  };
-
   const checkedIn = !!today?.checkIn;
   const checkedOut = !!today?.checkOut;
-  const isPending = today?.status === 'pending-absence';
-  const isAbsent = today?.status === 'absent';
+  const isFinished = checkedOut || today?.status === 'absent' || today?.status === 'pending-absence';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -108,27 +154,15 @@ export default function HomeScreen() {
             <View style={styles.statItem}><Text style={styles.statLabel}>Hours</Text><Text style={styles.statValue}>{today?.workHours ? `${today.workHours.toFixed(1)}h` : '--'}</Text></View>
           </View>
 
-          {!checkedOut && !isAbsent && !isPending ? (
-            <Pressable style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading && styles.btnDisabled]} onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')} disabled={loading}>
-              {loading ? <ActivityIndicator color="white" /> : <><Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} /><Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text></>}
-            </Pressable>
-          ) : isPending ? (
-            <View style={[styles.completedContainer, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-              <Ionicons name="time" size={48} color={colors.warning} />
-              <Text style={[styles.completedText, { color: colors.warning }]}>Request Pending</Text>
-              <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Waiting for approval</Text>
-            </View>
-          ) : isAbsent ? (
-            <View style={styles.completedContainer}>
-              <Ionicons name="alert-circle" size={48} color={colors.danger} />
-              <Text style={[styles.completedText, { color: colors.danger }]}>Marked Absent</Text>
-            </View>
+          {/* ✅ Simplified Logic */}
+          {!isFinished ? (
+            <ActionButton loading={loading} checkedIn={checkedIn} onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')} />
           ) : (
-            <View style={styles.completedContainer}><Ionicons name="checkmark-circle" size={48} color={colors.success} /><Text style={styles.completedText}>Workday Completed</Text></View>
+            <StatusBanner status={today?.status} />
           )}
         </View>
 
-        {!today?.checkIn && !isAbsent && !isPending && (
+        {!isFinished && !checkedIn && (
           <Pressable style={styles.absentBtn} onPress={onMarkAbsent} disabled={loading}>
             <Text style={styles.absentText}>I am Absent Today</Text>
             <Ionicons name="open-outline" size={16} color="#ef4444" style={{ marginLeft: 6 }} />

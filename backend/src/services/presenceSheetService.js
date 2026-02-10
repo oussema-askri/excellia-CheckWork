@@ -12,11 +12,9 @@ const ApiError = require('../utils/ApiError');
 
 const TEMPLATE_PATH = path.join(__dirname, '../templates/feuille_presence_template.xlsx');
 
-// Tasks Logic
 const TASK_WEEKEND = 'Monitoring Appdynamics/Monétique/Elasticsearch';
 const TASK_WEEKDAY = 'Assurer les tâches quotidiennes de fin de journée et la supervision de système monetique et des sauvegardes';
 
-// Real Time Logic
 function formatRealTimeRange(checkIn, checkOut) {
   if (!checkIn || !checkOut) return '';
   return `${dayjs(checkIn).format('HH:mm')} - ${dayjs(checkOut).format('HH:mm')}`;
@@ -35,7 +33,7 @@ function getShiftIndex(shiftStr) {
   return null;
 }
 
-// 1. Find Headers
+// Helper: Determine headers position
 async function findHeaders(sheet) {
   const used = sheet.usedRange();
   if (!used) throw ApiError.badRequest('Template sheet appears empty.');
@@ -43,17 +41,16 @@ async function findHeaders(sheet) {
   const maxRow = used.endCell().rowNumber();
   const maxCol = used.endCell().columnNumber();
 
-  let headerRow = null;
-  let dateCol = null;
-  let tasksCol = null;
-  let timeCol = null;
-
   for (let r = 1; r <= maxRow; r++) {
     for (let c = 1; c <= maxCol; c++) {
       const v = sheet.cell(r, c).value();
       if (typeof v !== 'string') continue;
 
       if (v.trim() === 'Date') {
+        let dateCol = null;
+        let tasksCol = null;
+        let timeCol = null;
+
         for (let cc = 1; cc <= maxCol; cc++) {
           const vv = sheet.cell(r, cc).value();
           if (typeof vv !== 'string') continue;
@@ -65,17 +62,14 @@ async function findHeaders(sheet) {
         }
 
         if (dateCol && tasksCol && timeCol) {
-          headerRow = r;
-          return { headerRow, dateCol, tasksCol, timeCol, maxRow, maxCol };
+          return { headerRow: r, dateCol, tasksCol, timeCol, maxRow, maxCol };
         }
       }
     }
   }
-
   throw ApiError.badRequest('Could not find table headers in template.');
 }
 
-// 2. Set Top Labels
 async function setLabelValueRight(sheet, labelText, valueToSet) {
   const used = sheet.usedRange();
   const maxRow = used.endCell().rowNumber();
@@ -84,8 +78,7 @@ async function setLabelValueRight(sheet, labelText, valueToSet) {
   for (let r = 1; r <= maxRow; r++) {
     for (let c = 1; c <= maxCol; c++) {
       const v = sheet.cell(r, c).value();
-      if (typeof v !== 'string') continue;
-      if (v.trim() === labelText) {
+      if (typeof v === 'string' && v.trim() === labelText) {
         sheet.cell(r, c + 1).value(valueToSet);
         return true;
       }
@@ -94,7 +87,6 @@ async function setLabelValueRight(sheet, labelText, valueToSet) {
   return false;
 }
 
-// 3. Set Bottom Signature
 async function setSignaturePrestataireBelow(sheet, fullName) {
   const used = sheet.usedRange();
   const maxRow = used.endCell().rowNumber();
@@ -106,10 +98,11 @@ async function setSignaturePrestataireBelow(sheet, fullName) {
 
     for (let c = 1; c <= maxCol; c++) {
       const v = sheet.cell(r, c).value();
-      if (typeof v !== 'string') continue;
-      const t = v.trim();
-      if (t === 'Prestataire') prestataireCol = c;
-      if (t === 'Responsable suivi de mission') hasResponsableHeader = true;
+      if (typeof v === 'string') {
+        const t = v.trim();
+        if (t === 'Prestataire') prestataireCol = c;
+        if (t === 'Responsable suivi de mission') hasResponsableHeader = true;
+      }
     }
 
     if (prestataireCol && hasResponsableHeader) {
@@ -120,7 +113,6 @@ async function setSignaturePrestataireBelow(sheet, fullName) {
   return false;
 }
 
-// 4. Build Data Maps
 async function buildMonthMaps(user, year, month) {
   const start = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).startOf('month').toDate();
   const end = dayjs(start).endOf('month').toDate();
@@ -134,15 +126,56 @@ async function buildMonthMaps(user, year, month) {
   ]);
 
   const attendanceByDay = new Map();
-  for (const a of att) attendanceByDay.set(dayjs(a.date).date(), a);
+  att.forEach(a => attendanceByDay.set(dayjs(a.date).date(), a));
 
   const planningByDay = new Map();
-  for (const p of plans) planningByDay.set(dayjs(p.date).date(), p);
+  plans.forEach(p => planningByDay.set(dayjs(p.date).date(), p));
 
   return { attendanceByDay, planningByDay, daysInMonth: dayjs(start).daysInMonth() };
 }
 
-// 5. Generate Logic
+// ✅ NEW: Helper to fill a single row logic (Reduces complexity)
+function fillRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, daysInMonth, attendanceByDay, planningByDay }) {
+  // Clear if out of bounds
+  if (dayNum > daysInMonth) {
+    sheet.cell(r, dateCol).value('');
+    sheet.cell(r, tasksCol).value('');
+    sheet.cell(r, timeCol).value('');
+    return;
+  }
+
+  // Date Logic
+  const dateObj = dayjs(`${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`);
+  const dayName = capitalizeFirst(dateObj.format('dddd'));
+  const isWeekend = [0, 6].includes(dateObj.day());
+  let dateLabel = `${String(dayNum).padStart(2, '0')} du mois`;
+  if (isWeekend) dateLabel += ` (${dayName})`;
+  sheet.cell(r, dateCol).value(dateLabel);
+
+  // Task & Time Logic
+  const p = planningByDay.get(dayNum);
+  const a = attendanceByDay.get(dayNum);
+  const shiftIndex = getShiftIndex(p?.shift);
+
+  if (a && a.status === 'absent') {
+    sheet.cell(r, tasksCol).value('Absent');
+    sheet.cell(r, timeCol).value('');
+    return;
+  }
+
+  // Real Time
+  const realTime = a ? formatRealTimeRange(a.checkIn, a.checkOut) : '';
+  sheet.cell(r, timeCol).value(realTime);
+
+  // Task
+  if (shiftIndex === null) {
+    sheet.cell(r, tasksCol).value('');
+  } else {
+    const task = isWeekend ? TASK_WEEKEND : TASK_WEEKDAY;
+    sheet.cell(r, tasksCol).value(task);
+  }
+}
+
 async function generatePresenceWorkbookBuffer({ user, year, month }) {
   const wb = await XlsxPopulate.fromFileAsync(TEMPLATE_PATH);
   const sheet = wb.sheet(0);
@@ -155,65 +188,21 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
   // Bottom Info
   await setSignaturePrestataireBelow(sheet, user.name);
 
-  // Table Data
+  // Data
   const { headerRow, dateCol, tasksCol, timeCol, maxRow } = await findHeaders(sheet);
   const { attendanceByDay, planningByDay, daysInMonth } = await buildMonthMaps(user, year, month);
 
-  // Loop through rows
+  // Loop
   for (let r = headerRow + 1; r <= maxRow; r++) {
     const dayNum = r - headerRow; 
-
     if (dayNum > 31) break;
 
-    // Clear extra days (29, 30, 31)
-    if (dayNum > daysInMonth) {
-      sheet.cell(r, dateCol).value('');
-      sheet.cell(r, tasksCol).value('');
-      sheet.cell(r, timeCol).value('');
-      continue;
-    }
-
-    // Set Date Label
-    const dateObj = dayjs(`${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`);
-    const dayName = capitalizeFirst(dateObj.format('dddd'));
-    const isWeekend = [0, 6].includes(dateObj.day());
-
-    let dateLabel = `${String(dayNum).padStart(2, '0')} du mois`;
-    if (isWeekend) dateLabel += ` (${dayName})`;
-    sheet.cell(r, dateCol).value(dateLabel);
-
-    // Get Data
-    const p = planningByDay.get(dayNum);
-    const a = attendanceByDay.get(dayNum);
-    const shiftIndex = getShiftIndex(p?.shift);
-
-    // ✅ NEW LOGIC: Only fill tasks if Attendance exists OR if explicitly marked Absent
-    if (!a) {
-      // No attendance record -> Empty row (Date remains)
-      sheet.cell(r, tasksCol).value('');
-      sheet.cell(r, timeCol).value('');
-      continue;
-    }
-
-    if (a.status === 'absent') {
-      // Marked Absent -> Write "Absent" in Task, Empty Time
-      sheet.cell(r, tasksCol).value('Absent');
-      sheet.cell(r, timeCol).value('');
-      continue;
-    }
-
-    // Has Attendance -> Fill Real Time + Correct Task
-    const realTime = formatRealTimeRange(a.checkIn, a.checkOut);
-    sheet.cell(r, timeCol).value(realTime);
-
-    if (shiftIndex === null) {
-      // Attendance but No Planning -> Empty Task
-      sheet.cell(r, tasksCol).value('');
-    } else {
-      // Attendance + Planning -> Set Task
-      const task = isWeekend ? TASK_WEEKEND : TASK_WEEKDAY;
-      sheet.cell(r, tasksCol).value(task);
-    }
+    // ✅ Delegate logic to helper to satisfy Sonar
+    fillRow(sheet, r, {
+      dateCol, tasksCol, timeCol,
+      dayNum, year, month, daysInMonth,
+      attendanceByDay, planningByDay
+    });
   }
 
   return wb.outputAsync();
@@ -221,34 +210,18 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
 
 async function generateAndStorePresenceSheet({ user, year, month, generatedBy }) {
   const buffer = await generatePresenceWorkbookBuffer({ user, year, month });
-
   const folder = `uploads/presence/${year}-${String(month).padStart(2, '0')}`;
   await fs.mkdir(folder, { recursive: true });
-
   const fileName = `Feuille_de_presence_${user.employeeId}_${year}-${String(month).padStart(2, '0')}.xlsx`;
   const filePath = `${folder}/${fileName}`;
-
   await fs.writeFile(filePath, buffer);
 
   const record = await PresenceSheet.findOneAndUpdate(
     { userId: user._id, year, month },
-    {
-      userId: user._id,
-      year,
-      month,
-      fileName,
-      filePath,
-      generatedBy,
-      generatedAt: new Date(),
-      size: buffer.length
-    },
+    { userId: user._id, year, month, fileName, filePath, generatedBy, generatedAt: new Date(), size: buffer.length },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
-
   return { record, buffer };
 }
 
-module.exports = {
-  generatePresenceWorkbookBuffer,
-  generateAndStorePresenceSheet
-};
+module.exports = { generatePresenceWorkbookBuffer, generateAndStorePresenceSheet };

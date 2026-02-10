@@ -10,6 +10,18 @@ export default function EmployeeList({
   onDelete,
   onToggleStatus,
 }) {
+  const getRoleVariant = (role) => {
+    if (role === 'admin') return 'primary';
+    if (role === 'zitouna') return 'warning';
+    return 'gray';
+  };
+
+  const getRoleLabel = (role) => {
+    if (role === 'admin') return 'Admin';
+    if (role === 'zitouna') return 'Auditor';
+    return 'Employee';
+  };
+
   const columns = [
     {
       header: 'Employee',
@@ -27,35 +39,14 @@ export default function EmployeeList({
         </div>
       ),
     },
-    {
-      header: 'Employee ID',
-      render: (row) => (
-        <span className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-          {row.employeeId}
-        </span>
-      ),
-    },
-    {
-      header: 'Department',
-      render: (row) => (
-        <span className="text-gray-600 dark:text-gray-300">
-          {row.department || '—'}
-        </span>
-      ),
-    },
-    {
-      header: 'Position',
-      render: (row) => (
-        <span className="text-gray-600 dark:text-gray-300">
-          {row.position || '—'}
-        </span>
-      ),
-    },
+    { header: 'Employee ID', render: (row) => <span className="font-mono text-sm bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">{row.employeeId}</span> },
+    { header: 'Department', render: (row) => <span className="text-gray-600 dark:text-gray-300">{row.department || '—'}</span> },
+    { header: 'Position', render: (row) => <span className="text-gray-600 dark:text-gray-300">{row.position || '—'}</span> },
     {
       header: 'Role',
       render: (row) => (
-        <Badge variant={row.role === 'admin' ? 'primary' : row.role === 'zitouna' ? 'warning' : 'gray'}>
-          {row.role === 'admin' ? 'Admin' : row.role === 'zitouna' ? 'Auditor' : 'Employee'}
+        <Badge variant={getRoleVariant(row.role)}>
+          {getRoleLabel(row.role)}
         </Badge>
       ),
     },
@@ -63,69 +54,27 @@ export default function EmployeeList({
       header: 'Status',
       render: (row) => (
         onToggleStatus ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleStatus(row)
-            }}
-            className="focus:outline-none"
-          >
-            <Badge variant={row.isActive ? 'success' : 'danger'} dot>
-              {row.isActive ? 'Active' : 'Inactive'}
-            </Badge>
+          <button onClick={(e) => { e.stopPropagation(); onToggleStatus(row) }} className="focus:outline-none">
+            <Badge variant={row.isActive ? 'success' : 'danger'} dot>{row.isActive ? 'Active' : 'Inactive'}</Badge>
           </button>
         ) : (
-          <Badge variant={row.isActive ? 'success' : 'danger'} dot>
-            {row.isActive ? 'Active' : 'Inactive'}
-          </Badge>
+          <Badge variant={row.isActive ? 'success' : 'danger'} dot>{row.isActive ? 'Active' : 'Inactive'}</Badge>
         )
       ),
     },
   ];
 
-  // ✅ Only show Actions column if permissions exist
   if (onEdit || onDelete) {
     columns.push({
       header: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-1">
-          {onEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEdit(row)
-              }}
-              className="text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
-            >
-              <PencilIcon className="w-4 h-4" />
-            </Button>
-          )}
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                onDelete(row)
-              }}
-              className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
-            >
-              <TrashIcon className="w-4 h-4" />
-            </Button>
-          )}
+          {onEdit && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(row) }} className="text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"><PencilIcon className="w-4 h-4" /></Button>}
+          {onDelete && <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onDelete(row) }} className="text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"><TrashIcon className="w-4 h-4" /></Button>}
         </div>
       ),
     });
   }
 
-  return (
-    <Table
-      columns={columns}
-      data={employees}
-      loading={loading}
-      emptyMessage="No employees found"
-    />
-  )
+  return <Table columns={columns} data={employees} loading={loading} emptyMessage="No employees found" />
 }

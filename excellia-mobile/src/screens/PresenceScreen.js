@@ -34,22 +34,28 @@ export default function PresenceScreen() {
       const base64 = encode(arrayBuffer);
       const fileName = `Feuille_${user?.employeeId || 'EMP'}_${parsed.y}-${String(parsed.m).padStart(2, '0')}.xlsx`;
 
-      // Universal Save Method (Works on Expo Go)
+      if (Platform.OS === 'android' && FileSystem.StorageAccessFramework) {
+        const SAF = FileSystem.StorageAccessFramework;
+        const perm = await SAF.requestDirectoryPermissionsAsync();
+        if (perm.granted) {
+          const fileUri = await SAF.createFileAsync(perm.directoryUri, fileName, XLSX_MIME);
+          await FileSystemLegacy.writeAsStringAsync(fileUri, base64, { encoding: 'base64' });
+          Alert.alert('Success', 'File downloaded successfully.');
+          return;
+        }
+      }
+
       const localUri = FileSystemLegacy.documentDirectory + fileName;
       await FileSystemLegacy.writeAsStringAsync(localUri, base64, { encoding: 'base64' });
       
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(localUri, { 
-          mimeType: XLSX_MIME, 
-          dialogTitle: 'Save/Share File',
-          UTI: 'com.microsoft.excel.xls' // Helpful for iOS
-        });
+        await Sharing.shareAsync(localUri, { mimeType: XLSX_MIME, dialogTitle: 'Download File' });
       } else {
-        Alert.alert('Saved', `File saved to app storage:\n${localUri}`);
+        Alert.alert('Saved', `File saved to app storage.`);
       }
     } catch (e) {
-      Alert.alert('Error', 'Failed to generate file. Check permissions.');
+      Alert.alert('Error', 'Failed to generate file. Check network/permissions.');
     } finally {
       setLoading(false);
     }
@@ -74,33 +80,15 @@ export default function PresenceScreen() {
           <View style={styles.inputRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Year</Text>
-              <TextInput
-                style={styles.input}
-                value={year}
-                onChangeText={setYear}
-                keyboardType="numeric"
-                placeholder="YYYY"
-                placeholderTextColor={colors.textSecondary}
-              />
+              <TextInput style={styles.input} value={year} onChangeText={setYear} keyboardType="numeric" placeholder="YYYY" placeholderTextColor={colors.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Month</Text>
-              <TextInput
-                style={styles.input}
-                value={month}
-                onChangeText={setMonth}
-                keyboardType="numeric"
-                placeholder="MM"
-                placeholderTextColor={colors.textSecondary}
-              />
+              <TextInput style={styles.input} value={month} onChangeText={setMonth} keyboardType="numeric" placeholder="MM" placeholderTextColor={colors.textSecondary} />
             </View>
           </View>
 
-          <Pressable
-            style={[styles.btn, loading && { opacity: 0.7 }]}
-            onPress={generateAndDownload}
-            disabled={loading}
-          >
+          <Pressable style={[styles.btn, loading && { opacity: 0.7 }]} onPress={generateAndDownload} disabled={loading}>
             <Ionicons name="download-outline" size={24} color="white" style={{ marginRight: 8 }} />
             <Text style={styles.btnText}>{loading ? 'Generating...' : 'Download .xlsx'}</Text>
           </Pressable>
