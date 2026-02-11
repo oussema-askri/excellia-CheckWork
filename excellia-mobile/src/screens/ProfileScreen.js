@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Switch } from 'react-native';
+import { 
+  View, Text, StyleSheet, Pressable, ScrollView, 
+  Modal, TextInput, ActivityIndicator, Alert, 
+  KeyboardAvoidingView, Platform, Switch 
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import client from '../api/client';
 import { colors, spacing, borderRadius, typography } from '../theme/theme';
+
+// ✅ REAL NOTIFICATIONS ENABLED
+import { 
+  registerForPushNotificationsAsync, 
+  scheduleDailyReminders, 
+  cancelAllReminders 
+} from '../utils/notifications';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -22,15 +33,36 @@ export default function ProfileScreen() {
       try {
         const saved = await AsyncStorage.getItem('remindersEnabled');
         setRemindersEnabled(saved === 'true');
-      } catch (e) { console.log(e); } // ✅ Fix: Catch error
+      } catch (e) {}
     };
     loadSettings();
   }, []);
 
   const toggleReminders = async (value) => {
-    setRemindersEnabled(value);
-    await AsyncStorage.setItem('remindersEnabled', String(value));
-    if (value) Alert.alert("Reminders Enabled", "Notifications will work in the production build.");
+    try {
+      if (value) {
+        // ✅ Real Permission Request
+        const granted = await registerForPushNotificationsAsync();
+        
+        if (granted) {
+          await scheduleDailyReminders(); // Schedules 08:30 and 17:00
+          setRemindersEnabled(true);
+          await AsyncStorage.setItem('remindersEnabled', 'true');
+          Alert.alert('Reminders On', 'You will be notified daily at 08:30 and 17:00.');
+        } else {
+          setRemindersEnabled(false); // Permission denied
+          Alert.alert('Permission Required', 'Please enable notifications in your phone settings.');
+        }
+      } else {
+        await cancelAllReminders();
+        setRemindersEnabled(false);
+        await AsyncStorage.setItem('remindersEnabled', 'false');
+      }
+    } catch (e) {
+      console.log(e);
+      Alert.alert('Error', 'Failed to update reminder settings.');
+      setRemindersEnabled(false);
+    }
   };
 
   const handleChangePassword = async () => {
