@@ -1,5 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Linking, ScrollView } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { 
+  View, Text, Pressable, StyleSheet, Alert, 
+  ActivityIndicator, Linking, ScrollView, RefreshControl 
+} from 'react-native';
 import dayjs from 'dayjs';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +11,10 @@ import { useNavigation } from '@react-navigation/native';
 import { attendanceApi } from '../api/attendanceApi';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, borderRadius, typography } from '../theme/theme';
-import PropTypes from 'prop-types'; // ✅ FIX: Added prop-types
+import { planningApi } from '../api/planningApi';
+import { scheduleShiftReminders } from '../utils/notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import PropTypes from 'prop-types';
 
 const LEAVE_REQUEST_URL = 'https://msstn.sharepoint.com/sites/MSSAdminHRTasks/Lists/MSS%20Demande%20de%20congs/NewForm.aspx';
 
@@ -87,11 +93,28 @@ export default function HomeScreen() {
   const [now, setNow] = useState(dayjs());
   const [today, setToday] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false); // ✅ Refresh State
+
+  // Sync Reminders Logic
+  const syncReminders = async () => {
+    try {
+      const enabled = await AsyncStorage.getItem('remindersEnabled');
+      if (enabled !== 'true') return;
+
+      const start = dayjs().startOf('month').format('YYYY-MM-DD');
+      const end = dayjs().endOf('month').format('YYYY-MM-DD');
+      const res = await planningApi.getMy({ startDate: start, endDate: end, limit: 100 });
+      
+      if (res.data) {
+        await scheduleShiftReminders(res.data);
+      }
+    } catch (e) {
+      console.log('Reminder sync failed', e);
+    }
+  };
 
   useEffect(() => {
-    refreshToday();
-    const t = setInterval(() => setNow(dayjs()), 1000);
-    return () => clearInterval(t);
+    syncReminders();
   }, []);
 
   const refreshToday = async () => {
@@ -103,15 +126,31 @@ export default function HomeScreen() {
     }
   };
 
+  // ✅ Pull-to-Refresh Handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshToday();
+    await syncReminders();
+    setRefreshing(false);
+  }, []);
+
+  useEffect(() => {
+    refreshToday();
+    const t = setInterval(() => setNow(dayjs()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const requestLocationPayload = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') throw new Error('Location permission denied.');
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+    return { location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
+  };
+
   const handleAction = async (action) => {
     setLoading(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') throw new Error('Location permission denied.');
-      
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-      const payload = { location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
-
+      const payload = await requestLocationPayload();
       if (action === 'checkIn') await attendanceApi.checkIn(payload);
       else await attendanceApi.checkOut(payload);
       
@@ -150,7 +189,6 @@ export default function HomeScreen() {
   const checkedOut = !!today?.checkOut;
   const isFinished = checkedOut || today?.status === 'absent' || today?.status === 'pending-absence';
 
-  // ✅ FIX: Removed nested ternary logic
   let renderAction;
   if (!isFinished) {
     renderAction = (
@@ -166,7 +204,12 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={ // ✅ Added RefreshControl
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+      >
         <View style={styles.header}>
           <View>
             <Text style={typography.caption}>Welcome back,</Text>

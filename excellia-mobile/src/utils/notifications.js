@@ -1,7 +1,9 @@
 import * as Notifications from 'expo-notifications';
-import { Alert, Platform } from 'react-native';
+import * as Device from 'expo-device';
+import { Platform, Alert } from 'react-native';
+import dayjs from 'dayjs';
 
-// 1. Configure handler
+// 1. Handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -10,11 +12,12 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// 2. Request Permissions (Simple version for Local only)
+// 2. Register
 export async function registerForPushNotificationsAsync() {
-  // We don't check Device.isDevice or get push tokens anymore
-  // to avoid Expo Go SDK 53 errors.
-  
+  if (!Device.isDevice) {
+    // console.log('Must use physical device for Push Notifications');
+  }
+
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -24,97 +27,79 @@ export async function registerForPushNotificationsAsync() {
   }
 
   if (finalStatus !== 'granted') {
-    Alert.alert('Permission required', 'Please enable notifications in settings to use reminders.');
+    Alert.alert('Permission required', 'Please enable notifications for shift reminders.');
     return false;
   }
 
-  // On Android, we need a channel for local notifications to appear.
-  // We try-catch this because Expo Go SDK 53 might complain, 
-  // but usually basic local channels are allowed.
   if (Platform.OS === 'android') {
-    try {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
-    } catch (e) {
-      console.log('Error setting channel (might be Expo Go limitation):', e);
-    }
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#FF231F7C',
+    });
   }
 
   return true;
 }
 
-// 3. Schedule
-/*export async function scheduleDailyReminders() {
-  await cancelAllReminders();
+// 3. Schedule Dynamic Shift Reminders
+export async function scheduleShiftReminders(planningItems) {
+  // Cancel all previous shift reminders to avoid duplicates
+  await Notifications.cancelAllScheduledNotificationsAsync();
 
-  try {
-    // Check In - 08:30
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "☀️ Good Morning!",
-        body: "Don't forget to check in on Excellia.",
-      },
-      trigger: {
-        type: 'daily', // Simple string often works better in older/mixed enviros, or use object below
-        hour: 20,
-        minute: 38,
-      },
-    });
+  console.log(`📅 Scheduling reminders for ${planningItems.length} shifts...`);
 
-    // Check Out - 17:00
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "👋 Workday Complete?",
-        body: "Remember to check out before you leave.",
-      },
-      trigger: {
-        type: 'daily',
-        hour: 20,
-        minute: 40,
-      },
-    });
-  } catch (error) {
-    console.log('Error scheduling:', error);
+  let count = 0;
+  const now = dayjs();
+
+  for (const item of planningItems) {
+    const dateStr = dayjs(item.date).format('YYYY-MM-DD');
+    const startStr = item.startTime; // "08:00"
+    const endStr = item.endTime;     // "17:00"
+
+    // Parse Start Time
+    const [startH, startM] = startStr.split(':');
+    const shiftStart = dayjs(dateStr).hour(startH).minute(startM);
     
-    // Fallback: If 'daily' type fails (specific to some Expo Go versions),
-    // try 'timeInterval' just to prove it works (repeats every 24h)
-    // This isn't perfect time-wise but proves permissions work.
-    /*
-    await Notifications.scheduleNotificationAsync({
-      content: { title: "☀️ Check-In Reminder", body: "Don't forget!" },
-      trigger: { seconds: 60 * 60 * 24, repeats: true } 
-    });
-    */
-//  }
-//}
-// src/utils/notifications.js
+    // Parse End Time (handle overnight next)
+    const [endH, endM] = endStr.split(':');
+    let shiftEnd = dayjs(dateStr).hour(endH).minute(endM);
+    if (shiftEnd.isBefore(shiftStart)) {
+      shiftEnd = shiftEnd.add(1, 'day');
+    }
 
-export async function scheduleDailyReminders() {
-  await cancelAllReminders();
+    // Reminder Times (30 mins before)
+    const remindStart = shiftStart.subtract(30, 'minute');
+    const remindEnd = shiftEnd.subtract(30, 'minute');
 
-  try {
-    // TEST NOTIFICATION: Fires in 5 seconds
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "🔔 Test Reminder",
-        body: "This is your test notification!",
-        sound: true,
-      },
-      trigger: {
-        seconds: 5, // <--- CHANGE THIS to wait 5 seconds
-        repeats: false,
-      },
-    });
-    
-    console.log("Notification scheduled for 5 seconds from now");
+    // Only schedule if time is in the future
+    if (remindStart.isAfter(now)) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "⏰ Shift Starting Soon",
+          body: `Your shift starts at ${startStr}. Don't forget to check in!`,
+          sound: true,
+        },
+        trigger: { date: remindStart.toDate() },
+      });
+      count++;
+    }
 
-  } catch (error) {
-    console.log('Error scheduling:', error);
+    if (remindEnd.isAfter(now)) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "👋 Shift Ending Soon",
+          body: `Your shift ends at ${endStr}. Remember to check out!`,
+          sound: true,
+        },
+        trigger: { date: remindEnd.toDate() },
+      });
+      count++;
+    }
   }
+
+  console.log(`✅ Scheduled ${count} notifications.`);
 }
 
 export async function cancelAllReminders() {
