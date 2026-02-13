@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Linking, ScrollView, RefreshControl } from 'react-native';
 import dayjs from 'dayjs';
 import * as Location from 'expo-location';
@@ -30,7 +30,14 @@ const ActionButton = ({ loading, checkedIn, onPress }) => (
     onPress={onPress}
     disabled={loading}
   >
-    {loading ? <ActivityIndicator color="white" /> : <><Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} /><Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text></>}
+    {loading ? (
+      <ActivityIndicator color="white" />
+    ) : (
+      <>
+        <Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} />
+        <Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text>
+      </>
+    )}
   </Pressable>
 );
 
@@ -72,7 +79,7 @@ export default function HomeScreen() {
     } catch (e) { console.log(e); }
   };
 
-  const onRefresh = React.useCallback(async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshToday();
     await syncReminders();
@@ -92,12 +99,11 @@ export default function HomeScreen() {
     return { location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
   };
 
-  // ✅ Updated Logic: Ask Transport Method
   const performCheckIn = async (transportMethod) => {
     setLoading(true);
     try {
       const payload = await requestLocationPayload();
-      payload.transportMethod = transportMethod; // 'wassalni' or 'personal'
+      payload.transportMethod = transportMethod;
       await attendanceApi.checkIn(payload);
       Alert.alert('Success', 'Checked in successfully.');
       await refreshToday();
@@ -108,10 +114,12 @@ export default function HomeScreen() {
     }
   };
 
-  const performCheckOut = async () => {
+  // ✅ Updated CheckOut to accept transport
+  const performCheckOut = async (transportMethod) => {
     setLoading(true);
     try {
       const payload = await requestLocationPayload();
+      payload.transportMethod = transportMethod;
       await attendanceApi.checkOut(payload);
       Alert.alert('Success', 'Checked out successfully.');
       await refreshToday();
@@ -122,32 +130,28 @@ export default function HomeScreen() {
     }
   };
 
+  // ✅ Unified Handler for both actions
   const handlePressAction = () => {
-    if (today?.checkIn) {
-      // Already checked in -> Confirm Check Out
-      Alert.alert('Check Out', 'Are you sure?', [
+    const isCheckIn = !today?.checkIn;
+    const title = isCheckIn ? 'Check In' : 'Check Out';
+    const action = isCheckIn ? performCheckIn : performCheckOut;
+
+    Alert.alert(
+      title,
+      'Select your transportation method:',
+      [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Confirm', onPress: performCheckOut }
-      ]);
-    } else {
-      // Not checked in -> Ask Transport Method
-      Alert.alert(
-        'Check In',
-        'Select your transportation method:',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: '🚗 Personal Transport', 
-            onPress: () => performCheckIn('personal') 
-          },
-          { 
-            text: '🚕 WASSALNI (Taxi)', 
-            onPress: () => performCheckIn('wassalni'),
-            style: 'default' 
-          }
-        ]
-      );
-    }
+        { 
+          text: '🚗 Personal Transport', 
+          onPress: () => action('personal') 
+        },
+        { 
+          text: '🚕 WASSALNI (Taxi)', 
+          onPress: () => action('wassalni'),
+          style: 'default' 
+        }
+      ]
+    );
   };
 
   const onMarkAbsent = async () => {

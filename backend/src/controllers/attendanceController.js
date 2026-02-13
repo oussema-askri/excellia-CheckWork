@@ -8,17 +8,18 @@ const dayjs = require('dayjs');
 
 const checkIn = async (req, res, next) => {
   try {
-    const { notes, location, transportMethod } = req.body; // ✅ Updated
+    const { notes, location, transportMethod } = req.body;
     const attendance = await AttendanceService.checkIn(req.user._id, location, notes, transportMethod);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Checked in successfully');
   } catch (error) { next(error); }
 };
 
+// ✅ Updated checkOut
 const checkOut = async (req, res, next) => {
   try {
-    const { notes, location } = req.body;
-    const attendance = await AttendanceService.checkOut(req.user._id, location, notes);
+    const { notes, location, transportMethod } = req.body;
+    const attendance = await AttendanceService.checkOut(req.user._id, location, notes, transportMethod);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Checked out successfully');
   } catch (error) { next(error); }
@@ -156,15 +157,12 @@ const getAttendanceReport = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-// ✅ NEW: Get Wassalni Stats
 const getWassalniStats = async (req, res, next) => {
   try {
-    const { startDate, endDate } = req.query;
-    // Default to this month if missing
+    const { startDate, endDate, employeeId } = req.query;
     const start = startDate || dayjs().startOf('month').format('YYYY-MM-DD');
     const end = endDate || dayjs().endOf('month').format('YYYY-MM-DD');
-
-    const stats = await AttendanceService.getWassalniStats(start, end);
+    const stats = await AttendanceService.getWassalniStats(start, end, employeeId);
     ApiResponse.success(res, stats);
   } catch (error) { next(error); }
 };
@@ -173,5 +171,5 @@ module.exports = {
   checkIn, checkOut, markAbsent, approveAbsence, rejectAbsence,
   getTodayAttendance, getMyAttendance, getAllAttendance, getUserAttendance,
   updateAttendance, deleteAttendance, getAttendanceStats, getAttendanceReport,
-  getWassalniStats // ✅ Exported
+  getWassalniStats
 };

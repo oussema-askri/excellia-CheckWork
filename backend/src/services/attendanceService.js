@@ -1,4 +1,5 @@
 const dayjs = require('dayjs');
+const mongoose = require('mongoose');
 const Attendance = require('../models/Attendance');
 const ApiError = require('../utils/ApiError');
 const { distanceMeters } = require('../utils/geo');
@@ -6,7 +7,6 @@ const { getDateBounds } = require('../utils/helpers');
 const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES } = require('../utils/constants');
 
 class AttendanceService {
-  // ✅ Updated checkIn to accept transportMethod
   static async checkIn(userId, location = null, notes = '', transportMethod = 'none') {
     const requireGeo = String(process.env.REQUIRE_GEOFENCE || 'false') === 'true';
 
@@ -55,7 +55,6 @@ class AttendanceService {
     attendance.status = ATTENDANCE_STATUS.PRESENT;
     if (notes) attendance.notes = notes;
     
-    // ✅ Set Transport
     if (transportMethod) attendance.transportMethod = transportMethod;
 
     if (location) {
@@ -77,7 +76,8 @@ class AttendanceService {
     return attendance;
   }
 
-  static async checkOut(userId, location = null, notes = '') {
+  // ✅ Updated checkOut to accept transportMethod
+  static async checkOut(userId, location = null, notes = '', transportMethod = 'none') {
     const today = new Date();
     const { start, end } = getDateBounds(today);
 
@@ -96,6 +96,13 @@ class AttendanceService {
     if (attendance.checkOut) throw ApiError.badRequest('Already checked out today');
 
     attendance.checkOut = new Date();
+    
+    // ✅ Save transport method if provided (overwrites check-in method if different, or you can log both)
+    // For Wassalni stats, usually ONE per day counts as a course, but if you want to count CheckIn + CheckOut separately,
+    // we might need separate fields. For now, we update the main field.
+    if (transportMethod && transportMethod !== 'none') {
+        attendance.transportMethod = transportMethod;
+    }
     
     if (location) {
       attendance.checkOutLocation = {
@@ -246,68 +253,36 @@ class AttendanceService {
     return { summary, attendances };
   }
 
-  // ✅ NEW: Wassalni Stats Service
-  static async getWassalniStats(startDate, endDate) {
+  static async getWassalniStats(startDate, endDate, employeeId = null) {
     const start = dayjs(startDate).startOf('day').toDate();
     const end = dayjs(endDate).endOf('day').toDate();
 
-    // 1. Total Wassalni Courses
-    const totalCourses = await Attendance.countDocuments({
+    const matchQuery = {
       date: { $gte: start, $lte: end },
       transportMethod: 'wassalni'
-    });
+    };
 
-    // 2. By Department
+    if (employeeId) {
+      matchQuery.userId = new mongoose.Types.ObjectId(employeeId);
+    }
+
+    const totalCourses = await Attendance.countDocuments(matchQuery);
+
     const byDepartment = await Attendance.aggregate([
-      { 
-        $match: { 
-          date: { $gte: start, $lte: end }, 
-          transportMethod: 'wassalni' 
-        } 
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
+      { $match: matchQuery },
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
       { $unwind: '$user' },
-      {
-        $group: {
-          _id: '$user.department',
-          count: { $sum: 1 }
-        }
-      },
+      { $group: { _id: '$user.department', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
 
-    // 3. By Employee
     const byEmployee = await Attendance.aggregate([
-      { 
-        $match: { 
-          date: { $gte: start, $lte: end }, 
-          transportMethod: 'wassalni' 
-        } 
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'userId',
-          foreignField: '_id',
-          as: 'user'
-        }
-      },
+      { $match: matchQuery },
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
       { $unwind: '$user' },
-      {
-        $group: {
-          _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' },
-          count: { $sum: 1 }
-        }
-      },
+      { $group: { _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' }, count: { $sum: 1 } } },
       { $sort: { count: -1 } },
-      { $limit: 20 } // Top 20 users
+      { $limit: 20 }
     ]);
 
     return { totalCourses, byDepartment, byEmployee };
