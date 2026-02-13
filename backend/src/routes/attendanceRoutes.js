@@ -14,7 +14,8 @@ const {
   updateAttendance,
   deleteAttendance,
   getAttendanceStats,
-  getAttendanceReport
+  getAttendanceReport,
+  getWassalniStats // ✅ NEW
 } = require('../controllers/attendanceController');
 
 const { protect } = require('../middleware/auth');
@@ -36,12 +37,14 @@ router.post('/absent', markAbsent);
 router.get('/today', getTodayAttendance);
 router.get('/my', listAttendanceValidator, validate, getMyAttendance);
 
+// ✅ Wassalni Stats (Admin/Zitouna)
+router.get('/wassalni', authorize('admin', 'zitouna'), getWassalniStats);
+
 router.get('/', authorize('admin', 'zitouna'), listAttendanceValidator, validate, getAllAttendance);
 router.get('/stats', authorize('admin', 'zitouna'), getAttendanceStats);
 router.get('/report', authorize('admin', 'zitouna'), getAttendanceReport);
 router.get('/user/:id', authorize('admin', 'zitouna'), getUserAttendance);
 
-// ✅ Approve/Reject Routes (Admin Only)
 router.put('/:id/approve', adminOnly, approveAbsence);
 router.put('/:id/reject', adminOnly, rejectAbsence);
 

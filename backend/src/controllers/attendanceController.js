@@ -3,21 +3,13 @@ const AttendanceService = require('../services/attendanceService');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../utils/constants');
+const { getDateBounds } = require('../utils/helpers');
 const dayjs = require('dayjs');
-// ✅ FIX: Import trusted library for Regex sanitization
-const escapeStringRegexp = require('escape-string-regexp');
-
-// Helper: Sanitize Strings
-const cleanStr = (val) => (val ? String(val).trim() : undefined);
 
 const checkIn = async (req, res, next) => {
   try {
-    const { notes, location } = req.body;
-    const attendance = await AttendanceService.checkIn(
-      req.user._id,
-      location,
-      cleanStr(notes)
-    );
+    const { notes, location, transportMethod } = req.body; // ✅ Updated
+    const attendance = await AttendanceService.checkIn(req.user._id, location, notes, transportMethod);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Checked in successfully');
   } catch (error) { next(error); }
@@ -26,11 +18,7 @@ const checkIn = async (req, res, next) => {
 const checkOut = async (req, res, next) => {
   try {
     const { notes, location } = req.body;
-    const attendance = await AttendanceService.checkOut(
-      req.user._id,
-      location,
-      cleanStr(notes)
-    );
+    const attendance = await AttendanceService.checkOut(req.user._id, location, notes);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Checked out successfully');
   } catch (error) { next(error); }
@@ -39,10 +27,7 @@ const checkOut = async (req, res, next) => {
 const markAbsent = async (req, res, next) => {
   try {
     const { notes } = req.body;
-    const attendance = await AttendanceService.markAbsent(
-      req.user._id,
-      cleanStr(notes)
-    );
+    const attendance = await AttendanceService.markAbsent(req.user._id, notes);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Marked as absent (Pending Approval)');
   } catch (error) { next(error); }
@@ -50,14 +35,14 @@ const markAbsent = async (req, res, next) => {
 
 const approveAbsence = async (req, res, next) => {
   try {
-    const attendance = await AttendanceService.approveAbsence(cleanStr(req.params.id));
+    const attendance = await AttendanceService.approveAbsence(req.params.id);
     ApiResponse.success(res, { attendance }, 'Absence approved');
   } catch (error) { next(error); }
 };
 
 const rejectAbsence = async (req, res, next) => {
   try {
-    await AttendanceService.rejectAbsence(cleanStr(req.params.id));
+    await AttendanceService.rejectAbsence(req.params.id);
     ApiResponse.success(res, null, 'Absence request rejected');
   } catch (error) { next(error); }
 };
@@ -71,109 +56,67 @@ const getTodayAttendance = async (req, res, next) => {
 
 const getMyAttendance = async (req, res, next) => {
   try {
-    const page = Number.parseInt(req.query.page, 10) || PAGINATION.DEFAULT_PAGE;
-    const limit = Math.min(Number.parseInt(req.query.limit, 10) || PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
-    const skip = (page - 1) * limit;
-
-    const startDate = cleanStr(req.query.startDate);
-    const endDate = cleanStr(req.query.endDate);
-    const status = cleanStr(req.query.status);
-
+    const { page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT, startDate, endDate, status } = req.query;
     const query = { userId: req.user._id };
-
-    if (startDate && endDate) {
-      query.date = { 
-        $gte: dayjs(startDate).startOf('day').toDate(), 
-        $lte: dayjs(endDate).endOf('day').toDate() 
-      };
-    }
-
+    if (startDate && endDate) query.date = { $gte: dayjs(startDate).startOf('day').toDate(), $lte: dayjs(endDate).endOf('day').toDate() };
     if (status) query.status = status;
-
+    const pageNum = parseInt(page);
+    const limitNum = Math.min(parseInt(limit), PAGINATION.MAX_LIMIT);
+    const skip = (pageNum - 1) * limitNum;
     const [attendances, total] = await Promise.all([
-      Attendance.find(query).sort({ date: -1 }).skip(skip).limit(limit),
+      Attendance.find(query).sort({ date: -1 }).skip(skip).limit(limitNum),
       Attendance.countDocuments(query)
     ]);
-    ApiResponse.paginated(res, attendances, { page, limit, total, pages: Math.ceil(total / limit) });
+    ApiResponse.paginated(res, attendances, { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) });
   } catch (error) { next(error); }
 };
 
 const getAllAttendance = async (req, res, next) => {
   try {
-    const page = Number.parseInt(req.query.page, 10) || PAGINATION.DEFAULT_PAGE;
-    const limit = Math.min(Number.parseInt(req.query.limit, 10) || PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
-    const skip = (page - 1) * limit;
-
-    const startDate = cleanStr(req.query.startDate);
-    const endDate = cleanStr(req.query.endDate);
-    const status = cleanStr(req.query.status);
-    const userId = cleanStr(req.query.userId);
-    const department = cleanStr(req.query.department);
-
+    const { page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT, startDate, endDate, status, userId, department } = req.query;
     const query = {};
-
-    if (startDate && endDate) {
-      query.date = { 
-        $gte: dayjs(startDate).startOf('day').toDate(), 
-        $lte: dayjs(endDate).endOf('day').toDate() 
-      };
-    }
-
+    if (startDate && endDate) query.date = { $gte: dayjs(startDate).startOf('day').toDate(), $lte: dayjs(endDate).endOf('day').toDate() };
     if (status) query.status = status;
     if (userId) query.userId = userId;
-
-    let attendances;
-    let total;
-
+    const pageNum = parseInt(page);
+    const limitNum = Math.min(parseInt(limit), PAGINATION.MAX_LIMIT);
+    const skip = (pageNum - 1) * limitNum;
+    
+    let attendances, total;
     if (department) {
-      // ✅ FIX: Use escapeStringRegexp to sanitize user input before creating RegExp
-      // This satisfies SonarQube's security rule against ReDoS
-      const safeDeptRegex = new RegExp(`^${escapeStringRegexp(department)}`, 'i');
-      
       const pipeline = [
         { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
         { $unwind: '$user' },
-        { $match: { ...query, 'user.department': safeDeptRegex } },
+        { $match: { ...query, 'user.department': { $regex: department, $options: 'i' } } },
         { $sort: { date: -1 } },
-        { $facet: { data: [{ $skip: skip }, { $limit: limit }], count: [{ $count: 'total' }] } }
+        { $facet: { data: [{ $skip: skip }, { $limit: limitNum }], count: [{ $count: 'total' }] } }
       ];
       const result = await Attendance.aggregate(pipeline);
-      attendances = result[0]?.data || [];
-      total = result[0]?.count[0]?.total || 0;
+      attendances = result[0].data;
+      total = result[0].count[0]?.total || 0;
     } else {
       [attendances, total] = await Promise.all([
-        Attendance.find(query).populate('userId', 'name employeeId email department').sort({ date: -1 }).skip(skip).limit(limit),
+        Attendance.find(query).populate('userId', 'name employeeId email department').sort({ date: -1 }).skip(skip).limit(limitNum),
         Attendance.countDocuments(query)
       ]);
     }
-    ApiResponse.paginated(res, attendances, { page, limit, total, pages: Math.ceil(total / limit) });
+    ApiResponse.paginated(res, attendances, { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) });
   } catch (error) { next(error); }
 };
 
 const getUserAttendance = async (req, res, next) => {
   try {
-    const page = Number.parseInt(req.query.page, 10) || PAGINATION.DEFAULT_PAGE;
-    const limit = Math.min(Number.parseInt(req.query.limit, 10) || PAGINATION.DEFAULT_LIMIT, PAGINATION.MAX_LIMIT);
-    const skip = (page - 1) * limit;
-
-    const startDate = cleanStr(req.query.startDate);
-    const endDate = cleanStr(req.query.endDate);
-    const userId = cleanStr(req.params.id);
-
-    const query = { userId };
-
-    if (startDate && endDate) {
-      query.date = { 
-        $gte: dayjs(startDate).startOf('day').toDate(), 
-        $lte: dayjs(endDate).endOf('day').toDate() 
-      };
-    }
-
+    const { page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT, startDate, endDate } = req.query;
+    const query = { userId: req.params.id };
+    if (startDate && endDate) query.date = { $gte: dayjs(startDate).startOf('day').toDate(), $lte: dayjs(endDate).endOf('day').toDate() };
+    const pageNum = parseInt(page);
+    const limitNum = Math.min(parseInt(limit), PAGINATION.MAX_LIMIT);
+    const skip = (pageNum - 1) * limitNum;
     const [attendances, total] = await Promise.all([
-      Attendance.find(query).populate('userId', 'name employeeId email').sort({ date: -1 }).skip(skip).limit(limit),
+      Attendance.find(query).populate('userId', 'name employeeId email').sort({ date: -1 }).skip(skip).limit(limitNum),
       Attendance.countDocuments(query)
     ]);
-    ApiResponse.paginated(res, attendances, { page, limit, total, pages: Math.ceil(total / limit) });
+    ApiResponse.paginated(res, attendances, { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) });
   } catch (error) { next(error); }
 };
 
@@ -181,10 +124,8 @@ const updateAttendance = async (req, res, next) => {
   try {
     const allowedUpdates = ['checkIn', 'checkOut', 'status', 'notes'];
     const updates = {};
-    allowedUpdates.forEach(field => { 
-      if (req.body[field] !== undefined) updates[field] = req.body[field]; 
-    });
-    const attendance = await Attendance.findByIdAndUpdate(cleanStr(req.params.id), { $set: updates }, { new: true, runValidators: true }).populate('userId', 'name employeeId email');
+    allowedUpdates.forEach(field => { if (req.body[field] !== undefined) updates[field] = req.body[field]; });
+    const attendance = await Attendance.findByIdAndUpdate(req.params.id, { $set: updates }, { new: true, runValidators: true }).populate('userId', 'name employeeId email');
     if (!attendance) return next(ApiError.notFound('Attendance record not found'));
     ApiResponse.success(res, { attendance }, 'Attendance updated successfully');
   } catch (error) { next(error); }
@@ -192,7 +133,7 @@ const updateAttendance = async (req, res, next) => {
 
 const deleteAttendance = async (req, res, next) => {
   try {
-    const attendance = await Attendance.findByIdAndDelete(cleanStr(req.params.id));
+    const attendance = await Attendance.findByIdAndDelete(req.params.id);
     if (!attendance) return next(ApiError.notFound('Attendance record not found'));
     ApiResponse.success(res, null, 'Attendance deleted successfully');
   } catch (error) { next(error); }
@@ -200,8 +141,7 @@ const deleteAttendance = async (req, res, next) => {
 
 const getAttendanceStats = async (req, res, next) => {
   try {
-    const startDate = cleanStr(req.query.startDate);
-    const endDate = cleanStr(req.query.endDate);
+    const { startDate, endDate } = req.query;
     const stats = await AttendanceService.getStats(startDate, endDate);
     ApiResponse.success(res, { stats });
   } catch (error) { next(error); }
@@ -209,18 +149,29 @@ const getAttendanceStats = async (req, res, next) => {
 
 const getAttendanceReport = async (req, res, next) => {
   try {
-    const userId = cleanStr(req.query.userId);
-    const year = Number.parseInt(req.query.year, 10);
-    const month = Number.parseInt(req.query.month, 10);
-
+    const { userId, year, month } = req.query;
     if (!year || !month) return next(ApiError.badRequest('Year and month are required'));
-    const report = await AttendanceService.getMonthlyReport(userId, year, month);
+    const report = await AttendanceService.getMonthlyReport(userId, parseInt(year), parseInt(month));
     ApiResponse.success(res, { report });
+  } catch (error) { next(error); }
+};
+
+// ✅ NEW: Get Wassalni Stats
+const getWassalniStats = async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+    // Default to this month if missing
+    const start = startDate || dayjs().startOf('month').format('YYYY-MM-DD');
+    const end = endDate || dayjs().endOf('month').format('YYYY-MM-DD');
+
+    const stats = await AttendanceService.getWassalniStats(start, end);
+    ApiResponse.success(res, stats);
   } catch (error) { next(error); }
 };
 
 module.exports = {
   checkIn, checkOut, markAbsent, approveAbsence, rejectAbsence,
   getTodayAttendance, getMyAttendance, getAllAttendance, getUserAttendance,
-  updateAttendance, deleteAttendance, getAttendanceStats, getAttendanceReport
+  updateAttendance, deleteAttendance, getAttendanceStats, getAttendanceReport,
+  getWassalniStats // ✅ Exported
 };

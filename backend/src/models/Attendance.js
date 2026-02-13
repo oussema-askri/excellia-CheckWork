@@ -27,6 +27,12 @@ const attendanceSchema = new mongoose.Schema({
     },
     default: 'present'
   },
+  // ✅ NEW FIELD
+  transportMethod: {
+    type: String,
+    enum: ['wassalni', 'personal', 'none'],
+    default: 'none'
+  },
   workHours: {
     type: Number,
     default: 0,
@@ -61,9 +67,10 @@ const attendanceSchema = new mongoose.Schema({
 attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1 });
 attendanceSchema.index({ status: 1 });
+// Index for faster stats
+attendanceSchema.index({ transportMethod: 1 }); 
 
-// ✅ FIXED: Async Pre-Save Hook (No 'next' parameter)
-attendanceSchema.pre('save', async function() {
+attendanceSchema.pre('save', function() {
   if (this.checkIn && this.checkOut) {
     const checkInTime = dayjs(this.checkIn);
     const checkOutTime = dayjs(this.checkOut);

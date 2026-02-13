@@ -41,7 +41,6 @@ export const attendanceApi = {
     return response
   },
 
-  // ✅ New
   approve: async (id) => {
     const response = await axios.put(`/attendance/${id}/approve`)
     return response
@@ -61,6 +60,12 @@ export const attendanceApi = {
     const response = await axios.get('/attendance/report', { params })
     return response
   },
+
+  // ✅ NEW
+  getWassalniStats: async (params = {}) => {
+    const response = await axios.get('/attendance/wassalni', { params })
+    return response
+  }
 }
 
 export default attendanceApi

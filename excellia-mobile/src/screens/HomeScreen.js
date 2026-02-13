@@ -1,8 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { 
-  View, Text, Pressable, StyleSheet, Alert, 
-  ActivityIndicator, Linking, ScrollView, RefreshControl 
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Linking, ScrollView, RefreshControl } from 'react-native';
 import dayjs from 'dayjs';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,67 +22,27 @@ const StatItem = ({ label, value }) => (
   </View>
 );
 
-StatItem.propTypes = {
-  label: PropTypes.string.isRequired,
-  value: PropTypes.string.isRequired,
-};
+StatItem.propTypes = { label: PropTypes.string.isRequired, value: PropTypes.string.isRequired };
 
 const ActionButton = ({ loading, checkedIn, onPress }) => (
   <Pressable
-    style={[
-      styles.actionBtn,
-      checkedIn ? styles.btnDanger : styles.btnSuccess,
-      loading ? styles.btnDisabled : {}
-    ]}
+    style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading ? styles.btnDisabled : {}]}
     onPress={onPress}
     disabled={loading}
   >
-    {loading ? (
-      <ActivityIndicator color="white" />
-    ) : (
-      <>
-        <Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} />
-        <Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text>
-      </>
-    )}
+    {loading ? <ActivityIndicator color="white" /> : <><Ionicons name={checkedIn ? "exit-outline" : "enter-outline"} size={24} color="white" style={{ marginRight: 8 }} /><Text style={styles.btnText}>{checkedIn ? 'Check Out' : 'Check In'}</Text></>}
   </Pressable>
 );
 
-ActionButton.propTypes = {
-  loading: PropTypes.bool.isRequired,
-  checkedIn: PropTypes.bool.isRequired,
-  onPress: PropTypes.func.isRequired,
-};
+ActionButton.propTypes = { loading: PropTypes.bool.isRequired, checkedIn: PropTypes.bool.isRequired, onPress: PropTypes.func.isRequired };
 
 const StatusBanner = ({ status }) => {
-  if (status === 'pending-absence') {
-    return (
-      <View style={[styles.completedContainer, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-        <Ionicons name="time" size={48} color={colors.warning} />
-        <Text style={[styles.completedText, { color: colors.warning }]}>Request Pending</Text>
-        <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Waiting for approval</Text>
-      </View>
-    );
-  }
-  if (status === 'absent') {
-    return (
-      <View style={styles.completedContainer}>
-        <Ionicons name="alert-circle" size={48} color={colors.danger} />
-        <Text style={[styles.completedText, { color: colors.danger }]}>Marked Absent</Text>
-      </View>
-    );
-  }
-  return (
-    <View style={styles.completedContainer}>
-      <Ionicons name="checkmark-circle" size={48} color={colors.success} />
-      <Text style={styles.completedText}>Workday Completed</Text>
-    </View>
-  );
+  if (status === 'pending-absence') return <View style={[styles.completedContainer, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}><Ionicons name="time" size={48} color={colors.warning} /><Text style={[styles.completedText, { color: colors.warning }]}>Request Pending</Text></View>;
+  if (status === 'absent') return <View style={styles.completedContainer}><Ionicons name="alert-circle" size={48} color={colors.danger} /><Text style={[styles.completedText, { color: colors.danger }]}>Marked Absent</Text></View>;
+  return <View style={styles.completedContainer}><Ionicons name="checkmark-circle" size={48} color={colors.success} /><Text style={styles.completedText}>Workday Completed</Text></View>;
 };
 
-StatusBanner.propTypes = {
-  status: PropTypes.string,
-};
+StatusBanner.propTypes = { status: PropTypes.string };
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -93,41 +50,29 @@ export default function HomeScreen() {
   const [now, setNow] = useState(dayjs());
   const [today, setToday] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false); // ✅ Refresh State
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Sync Reminders Logic
   const syncReminders = async () => {
     try {
       const enabled = await AsyncStorage.getItem('remindersEnabled');
       if (enabled !== 'true') return;
-
       const start = dayjs().startOf('month').format('YYYY-MM-DD');
       const end = dayjs().endOf('month').format('YYYY-MM-DD');
       const res = await planningApi.getMy({ startDate: start, endDate: end, limit: 100 });
-      
-      if (res.data) {
-        await scheduleShiftReminders(res.data);
-      }
-    } catch (e) {
-      console.log('Reminder sync failed', e);
-    }
+      if (res.data) await scheduleShiftReminders(res.data);
+    } catch (e) { console.log('Reminder sync failed', e); }
   };
 
-  useEffect(() => {
-    syncReminders();
-  }, []);
+  useEffect(() => { syncReminders(); }, []);
 
   const refreshToday = async () => {
     try {
       const res = await attendanceApi.getToday();
       setToday(res.data.attendance);
-    } catch (e) {
-      console.log(e);
-    }
+    } catch (e) { console.log(e); }
   };
 
-  // ✅ Pull-to-Refresh Handler
-  const onRefresh = useCallback(async () => {
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     await refreshToday();
     await syncReminders();
@@ -147,14 +92,14 @@ export default function HomeScreen() {
     return { location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
   };
 
-  const handleAction = async (action) => {
+  // ✅ Updated Logic: Ask Transport Method
+  const performCheckIn = async (transportMethod) => {
     setLoading(true);
     try {
       const payload = await requestLocationPayload();
-      if (action === 'checkIn') await attendanceApi.checkIn(payload);
-      else await attendanceApi.checkOut(payload);
-      
-      Alert.alert('Success', action === 'checkIn' ? 'Checked in.' : 'Checked out.');
+      payload.transportMethod = transportMethod; // 'wassalni' or 'personal'
+      await attendanceApi.checkIn(payload);
+      Alert.alert('Success', 'Checked in successfully.');
       await refreshToday();
     } catch (e) {
       Alert.alert('Action Failed', e.message);
@@ -163,11 +108,46 @@ export default function HomeScreen() {
     }
   };
 
-  const confirmAction = (action) => {
-    Alert.alert(action === 'checkIn' ? 'Check In' : 'Check Out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm', onPress: () => handleAction(action) }
-    ]);
+  const performCheckOut = async () => {
+    setLoading(true);
+    try {
+      const payload = await requestLocationPayload();
+      await attendanceApi.checkOut(payload);
+      Alert.alert('Success', 'Checked out successfully.');
+      await refreshToday();
+    } catch (e) {
+      Alert.alert('Action Failed', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePressAction = () => {
+    if (today?.checkIn) {
+      // Already checked in -> Confirm Check Out
+      Alert.alert('Check Out', 'Are you sure?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Confirm', onPress: performCheckOut }
+      ]);
+    } else {
+      // Not checked in -> Ask Transport Method
+      Alert.alert(
+        'Check In',
+        'Select your transportation method:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: '🚗 Personal Transport', 
+            onPress: () => performCheckIn('personal') 
+          },
+          { 
+            text: '🚕 WASSALNI (Taxi)', 
+            onPress: () => performCheckIn('wassalni'),
+            style: 'default' 
+          }
+        ]
+      );
+    }
   };
 
   const onMarkAbsent = async () => {
@@ -191,25 +171,14 @@ export default function HomeScreen() {
 
   let renderAction;
   if (!isFinished) {
-    renderAction = (
-      <ActionButton
-        loading={loading}
-        checkedIn={checkedIn}
-        onPress={() => confirmAction(checkedIn ? 'checkOut' : 'checkIn')}
-      />
-    );
+    renderAction = <ActionButton loading={loading} checkedIn={checkedIn} onPress={handlePressAction} />;
   } else {
     renderAction = <StatusBanner status={today?.status} />;
   }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={ // ✅ Added RefreshControl
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-        }
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}>
         <View style={styles.header}>
           <View>
             <Text style={typography.caption}>Welcome back,</Text>

@@ -8,6 +8,8 @@ import {
   DevicePhoneMobileIcon,
   InboxStackIcon // ✅ Import icon for Requests
 } from '@heroicons/react/24/outline'
+import { TruckIcon } from '@heroicons/react/24/outline'
+
 
 const adminLinks = [
   { name: 'Dashboard', href: '/admin/dashboard', icon: HomeIcon },
@@ -17,6 +19,7 @@ const adminLinks = [
   { name: 'Planning', href: '/admin/planning', icon: CalendarDaysIcon },
   { name: 'Feuille de présence', href: '/admin/presence', icon: CalendarDaysIcon },
   { name: 'Devices', href: '/admin/devices', icon: DevicePhoneMobileIcon },
+  { name: 'Wassalni', href: '/admin/wassalni', icon: TruckIcon },
 ]
 
 const zitounaLinks = [

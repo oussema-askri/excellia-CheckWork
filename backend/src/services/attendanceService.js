@@ -6,7 +6,8 @@ const { getDateBounds } = require('../utils/helpers');
 const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES } = require('../utils/constants');
 
 class AttendanceService {
-  static async checkIn(userId, location = null, notes = '') {
+  // ✅ Updated checkIn to accept transportMethod
+  static async checkIn(userId, location = null, notes = '', transportMethod = 'none') {
     const requireGeo = String(process.env.REQUIRE_GEOFENCE || 'false') === 'true';
 
     if (requireGeo) {
@@ -53,6 +54,9 @@ class AttendanceService {
     attendance.checkIn = new Date();
     attendance.status = ATTENDANCE_STATUS.PRESENT;
     if (notes) attendance.notes = notes;
+    
+    // ✅ Set Transport
+    if (transportMethod) attendance.transportMethod = transportMethod;
 
     if (location) {
       attendance.checkInLocation = {
@@ -126,7 +130,6 @@ class AttendanceService {
       attendance = new Attendance({ userId, date: start });
     }
 
-    // ✅ Set to PENDING
     attendance.status = ATTENDANCE_STATUS.PENDING_ABSENCE;
     attendance.checkIn = null;
     attendance.checkOut = null;
@@ -136,7 +139,6 @@ class AttendanceService {
     return attendance;
   }
 
-  // ✅ Approve Absence
   static async approveAbsence(attendanceId) {
     const attendance = await Attendance.findById(attendanceId);
     if (!attendance) throw ApiError.notFound('Record not found');
@@ -150,7 +152,6 @@ class AttendanceService {
     return attendance;
   }
 
-  // ✅ Reject Absence
   static async rejectAbsence(attendanceId) {
     const attendance = await Attendance.findByIdAndDelete(attendanceId);
     if (!attendance) throw ApiError.notFound('Record not found');
@@ -191,7 +192,12 @@ class AttendanceService {
     const [stats, recentCheckIns] = await Promise.all([
       Attendance.aggregate([
         { $match: { date: { $gte: start, $lte: end } } },
-        { $group: { _id: '$status', count: { $sum: 1 } } }
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 }
+          }
+        }
       ]),
       Attendance.find({ date: { $gte: start, $lte: end } })
         .populate('userId', 'name employeeId department')
@@ -238,6 +244,73 @@ class AttendanceService {
     }
 
     return { summary, attendances };
+  }
+
+  // ✅ NEW: Wassalni Stats Service
+  static async getWassalniStats(startDate, endDate) {
+    const start = dayjs(startDate).startOf('day').toDate();
+    const end = dayjs(endDate).endOf('day').toDate();
+
+    // 1. Total Wassalni Courses
+    const totalCourses = await Attendance.countDocuments({
+      date: { $gte: start, $lte: end },
+      transportMethod: 'wassalni'
+    });
+
+    // 2. By Department
+    const byDepartment = await Attendance.aggregate([
+      { 
+        $match: { 
+          date: { $gte: start, $lte: end }, 
+          transportMethod: 'wassalni' 
+        } 
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $group: {
+          _id: '$user.department',
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } }
+    ]);
+
+    // 3. By Employee
+    const byEmployee = await Attendance.aggregate([
+      { 
+        $match: { 
+          date: { $gte: start, $lte: end }, 
+          transportMethod: 'wassalni' 
+        } 
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $group: {
+          _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { count: -1 } },
+      { $limit: 20 } // Top 20 users
+    ]);
+
+    return { totalCourses, byDepartment, byEmployee };
   }
 }
 

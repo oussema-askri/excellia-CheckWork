@@ -20,7 +20,6 @@ const SHIFT_DEFINITIONS = {
   2: { name: 'Shift 2', start: '14:00', end: '22:00' },
 };
 
-// ✅ FIX: Secure Random
 const secureRandom = (max) => crypto.randomInt(0, max);
 
 const connectDB = async () => {
@@ -47,7 +46,6 @@ const clearDatabase = async () => {
 const seedUsers = async () => {
   console.log('📝 Seeding users...');
 
-  // ✅ FIX: Use Env Vars
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@excellia.com';
   const adminPass = process.env.ADMIN_PASSWORD || 'Admin@123';
   const empPass = process.env.EMPLOYEE_PASSWORD || 'Employee@123';
@@ -65,28 +63,39 @@ const seedUsers = async () => {
   });
   await admin.save();
 
+  // Create Zitouna user
+  const zitouna = new User({
+    employeeId: 'ZIT001',
+    name: 'Zitouna Auditor',
+    email: 'zitouna@excellia.com',
+    password: 'Zitouna@123',
+    role: 'zitouna',
+    department: 'Audit',
+    position: 'Auditor',
+    isActive: true,
+    trustedDeviceId: null
+  });
+  await zitouna.save();
+
   const employeesData = [
-    { name: 'Oussema Askri', dept: 'Direction Production SI' },
-    { name: 'Zied Abdeltif', dept: 'Direction Production SI' },
-    { name: 'Zied Guesmi', dept: 'Direction Production SI' },
-    { name: 'Ala Eddine', dept: 'Direction Production SI' },
-    { name: 'Fedi Ben Ali', dept: 'Direction Production SI' },
-    { name: 'Yassine Jlassi', dept: 'Direction Production SI' },
-    { name: 'Adnen Tounsi', dept: 'Direction Production SI' },
-    { name: 'Sarah Connor', dept: 'HR' },
-    { name: 'John Smith', dept: 'Marketing' },
-    { name: 'Emily Blunt', dept: 'Marketing' },
+    { id: 'EMP001', name: 'Oussema Askri', email: 'oussema.askri@excellia.tn', dept: 'Direction Production SI' },
+    { id: 'EMP002', name: 'Fedi Hajri', email: 'fadi.hajri@excellia.tn', dept: 'Direction Production SI' }, // No Wassalni
+    { id: 'EMP003', name: 'Yassine Ben Yekhlef', email: 'yassine.benyekhlef@excellia.tn', dept: 'Direction Production SI' },
+    { id: 'EMP004', name: 'Adnen Rouissi', email: 'adnen.rouissi@excellia.tn', dept: 'Direction Production SI' },
+    { id: 'EMP005', name: 'Zied Guesmi', email: 'zied.guesmi@excellia.tn', dept: 'Direction Production SI' },
+    { id: 'EMP006', name: 'Ala Oueslati', email: 'ala.oueslati@excellia.tn', dept: 'Direction Production SI' },
+    { id: 'EMP007', name: 'Zied Abdellatif', email: 'zied.abdellatif@excellia.tn', dept: 'Direction Production SI' },
+    { id: 'EMP008', name: 'Sarah Connor', email: 'sarah.connor@excellia.tn', dept: 'HR' },
+    { id: 'EMP009', name: 'John Smith', email: 'john.smith@excellia.tn', dept: 'Marketing' }
   ];
 
   const createdEmployees = [];
-  let idCounter = 1;
 
   for (const e of employeesData) {
-    const emailName = e.name.toLowerCase().replace(/\s+/g, '.');
     const user = new User({
-      employeeId: `EMP${String(idCounter++).padStart(3, '0')}`,
+      employeeId: e.id,
       name: e.name,
-      email: `${emailName}@excellia.com`,
+      email: e.email,
       password: empPass,
       role: 'employee',
       department: e.dept,
@@ -98,7 +107,7 @@ const seedUsers = async () => {
     createdEmployees.push(user);
   }
 
-  console.log(`  ✓ Created 1 Admin + ${createdEmployees.length} Employees`);
+  console.log(`  ✓ Created 1 Admin, 1 Zitouna, ${createdEmployees.length} Employees`);
   return { admin, employees: createdEmployees };
 };
 
@@ -152,13 +161,18 @@ const seedPlanningAndAttendance = async (admin, employees) => {
           totalPlanning++;
 
           if (ATTENDANCE_MONTHS.includes(month)) {
-            if (emp.employeeId === 'EMP001') continue; 
+            // EMP001 (Oussema) -> No Attendance (Absent test)
+            if (emp.employeeId === 'EMP001') continue;
 
             const randomOffsetStart = secureRandom(20) - 10; 
             const randomOffsetEnd = secureRandom(20) - 5; 
 
             const checkIn = dayjs(getDateAtTime(dateObj, selectedShift.start)).add(randomOffsetStart, 'minute');
             const checkOut = dayjs(getDateAtTime(dateObj, selectedShift.end)).add(randomOffsetEnd, 'minute');
+
+            // ✅ WASSALNI LOGIC
+            // Everyone uses Wassalni EXCEPT Fedi Hajri (EMP002)
+            const transportMethod = emp.employeeId === 'EMP002' ? 'personal' : 'wassalni';
 
             const att = new Attendance({
               userId: emp._id,
@@ -167,7 +181,8 @@ const seedPlanningAndAttendance = async (admin, employees) => {
               checkOut: checkOut.toDate(),
               status: randomOffsetStart > 15 ? 'late' : 'present',
               workHours: checkOut.diff(checkIn, 'hour', true).toFixed(2),
-              notes: 'Auto-generated'
+              notes: 'Auto-generated',
+              transportMethod: transportMethod // ✅ Set transport
             });
             await att.save();
             totalAttendance++;
@@ -179,6 +194,7 @@ const seedPlanningAndAttendance = async (admin, employees) => {
 
   console.log(`  ✓ Planning Records: ${totalPlanning}`);
   console.log(`  ✓ Attendance Records: ${totalAttendance}`);
+  console.log(`  ✓ Transport: Everyone 'wassalni' except EMP002 'personal'.`);
 };
 
 const seed = async () => {
