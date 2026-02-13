@@ -27,12 +27,14 @@ const attendanceSchema = new mongoose.Schema({
     },
     default: 'present'
   },
-  // Single field as before
-  transportMethod: {
-    type: String,
-    enum: ['wassalni', 'personal', 'none'],
-    default: 'none'
+  
+  // ✅ NEW LOGIC: Store transport events as an array
+  // Example: ['wassalni', 'personal'] or ['wassalni', 'wassalni']
+  transportEvents: {
+    type: [String],
+    default: [] 
   },
+
   workHours: {
     type: Number,
     default: 0,
@@ -67,8 +69,9 @@ const attendanceSchema = new mongoose.Schema({
 attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1 });
 attendanceSchema.index({ status: 1 });
+attendanceSchema.index({ transportEvents: 1 }); // Index for stats
 
-// Async hook WITHOUT next (Modern Mongoose fix we applied earlier)
+// Async hook WITHOUT next
 attendanceSchema.pre('save', async function() {
   if (this.checkIn && this.checkOut) {
     const checkInTime = dayjs(this.checkIn);
