@@ -55,7 +55,8 @@ class AttendanceService {
     attendance.status = ATTENDANCE_STATUS.PRESENT;
     if (notes) attendance.notes = notes;
     
-    if (transportMethod) attendance.transportMethod = transportMethod;
+    // ✅ SAVE IN
+    if (transportMethod) attendance.transportMethodIn = transportMethod;
 
     if (location) {
       attendance.checkInLocation = {
@@ -76,7 +77,6 @@ class AttendanceService {
     return attendance;
   }
 
-  // ✅ Updated checkOut to accept transportMethod
   static async checkOut(userId, location = null, notes = '', transportMethod = 'none') {
     const today = new Date();
     const { start, end } = getDateBounds(today);
@@ -97,12 +97,8 @@ class AttendanceService {
 
     attendance.checkOut = new Date();
     
-    // ✅ Save transport method if provided (overwrites check-in method if different, or you can log both)
-    // For Wassalni stats, usually ONE per day counts as a course, but if you want to count CheckIn + CheckOut separately,
-    // we might need separate fields. For now, we update the main field.
-    if (transportMethod && transportMethod !== 'none') {
-        attendance.transportMethod = transportMethod;
-    }
+    // ✅ SAVE OUT
+    if (transportMethod) attendance.transportMethodOut = transportMethod;
     
     if (location) {
       attendance.checkOutLocation = {
@@ -199,12 +195,7 @@ class AttendanceService {
     const [stats, recentCheckIns] = await Promise.all([
       Attendance.aggregate([
         { $match: { date: { $gte: start, $lte: end } } },
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 }
-          }
-        }
+        { $group: { _id: '$status', count: { $sum: 1 } } }
       ]),
       Attendance.find({ date: { $gte: start, $lte: end } })
         .populate('userId', 'name employeeId department')
@@ -253,34 +244,65 @@ class AttendanceService {
     return { summary, attendances };
   }
 
+  // ✅ UPDATED: Wassalni Stats (Sums In + Out courses)
   static async getWassalniStats(startDate, endDate, employeeId = null) {
     const start = dayjs(startDate).startOf('day').toDate();
     const end = dayjs(endDate).endOf('day').toDate();
 
+    // Match if EITHER In OR Out is wassalni
     const matchQuery = {
       date: { $gte: start, $lte: end },
-      transportMethod: 'wassalni'
+      $or: [{ transportMethodIn: 'wassalni' }, { transportMethodOut: 'wassalni' }]
     };
 
     if (employeeId) {
       matchQuery.userId = new mongoose.Types.ObjectId(employeeId);
     }
 
-    const totalCourses = await Attendance.countDocuments(matchQuery);
+    // Aggregation Logic:
+    // For each document, we count how many courses (0, 1, or 2)
+    // 1 if In=wassalni, +1 if Out=wassalni
+    
+    const projectStage = {
+      userId: 1,
+      coursesCount: {
+        $add: [
+          { $cond: [{ $eq: ['$transportMethodIn', 'wassalni'] }, 1, 0] },
+          { $cond: [{ $eq: ['$transportMethodOut', 'wassalni'] }, 1, 0] }
+        ]
+      }
+    };
 
+    // 1. Total Courses
+    const totalAgg = await Attendance.aggregate([
+      { $match: matchQuery },
+      { $project: projectStage },
+      { $group: { _id: null, total: { $sum: '$coursesCount' } } }
+    ]);
+    const totalCourses = totalAgg[0]?.total || 0;
+
+    // 2. By Department
     const byDepartment = await Attendance.aggregate([
       { $match: matchQuery },
       { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
       { $unwind: '$user' },
-      { $group: { _id: '$user.department', count: { $sum: 1 } } },
+      { $project: { 'user.department': 1, ...projectStage } },
+      { $group: { _id: '$user.department', count: { $sum: '$coursesCount' } } },
       { $sort: { count: -1 } }
     ]);
 
+    // 3. By Employee
     const byEmployee = await Attendance.aggregate([
       { $match: matchQuery },
       { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
       { $unwind: '$user' },
-      { $group: { _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' }, count: { $sum: 1 } } },
+      { $project: { 'user.employeeId': 1, 'user.name': 1, 'user.department': 1, ...projectStage } },
+      {
+        $group: {
+          _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' },
+          count: { $sum: '$coursesCount' }
+        }
+      },
       { $sort: { count: -1 } },
       { $limit: 20 }
     ]);
