@@ -1,5 +1,5 @@
 const XLSX = require('xlsx');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const dayjs = require('dayjs');
 const customParseFormat = require('dayjs/plugin/customParseFormat');
 const User = require('../models/User');
@@ -17,15 +17,15 @@ class ExcelService {
     try {
       // Read the Excel file
       const workbook = XLSX.readFile(filePath);
-      
+
       // Get the first sheet
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
-      
+
       // Convert to JSON
-      const rawData = XLSX.utils.sheet_to_json(worksheet, { 
+      const rawData = XLSX.utils.sheet_to_json(worksheet, {
         defval: '',
-        raw: false 
+        raw: false
       });
 
       if (!rawData || rawData.length === 0) {
@@ -34,17 +34,17 @@ class ExcelService {
 
       // Get column headers from first row
       const headers = Object.keys(rawData[0]);
-      
+
       // Map columns
       const columnMap = this.mapColumns(headers);
-      
+
       // Validate required columns
       this.validateRequiredColumns(columnMap);
-      
+
       // Parse and validate each row
       const parsedData = [];
       const errors = [];
-      
+
       rawData.forEach((row, index) => {
         const rowNumber = index + 2; // Excel rows start at 1, plus header row
         try {
@@ -77,45 +77,45 @@ class ExcelService {
    */
   static mapColumns(headers) {
     const columnMap = {};
-    
+
     // Find Employee ID column
-    columnMap.employeeId = headers.find(h => 
-      EXCEL_COLUMNS.EMPLOYEE_ID.some(col => 
+    columnMap.employeeId = headers.find(h =>
+      EXCEL_COLUMNS.EMPLOYEE_ID.some(col =>
         col.toLowerCase() === h.toLowerCase().trim()
       )
     );
-    
+
     // Find Name column
-    columnMap.name = headers.find(h => 
-      EXCEL_COLUMNS.NAME.some(col => 
+    columnMap.name = headers.find(h =>
+      EXCEL_COLUMNS.NAME.some(col =>
         col.toLowerCase() === h.toLowerCase().trim()
       )
     );
-    
+
     // Find Date column
-    columnMap.date = headers.find(h => 
-      EXCEL_COLUMNS.DATE.some(col => 
+    columnMap.date = headers.find(h =>
+      EXCEL_COLUMNS.DATE.some(col =>
         col.toLowerCase() === h.toLowerCase().trim()
       )
     );
-    
+
     // Find Shift column
-    columnMap.shift = headers.find(h => 
-      EXCEL_COLUMNS.SHIFT.some(col => 
+    columnMap.shift = headers.find(h =>
+      EXCEL_COLUMNS.SHIFT.some(col =>
         col.toLowerCase() === h.toLowerCase().trim()
       )
     );
-    
+
     // Find Start Time column
-    columnMap.startTime = headers.find(h => 
-      EXCEL_COLUMNS.START_TIME.some(col => 
+    columnMap.startTime = headers.find(h =>
+      EXCEL_COLUMNS.START_TIME.some(col =>
         col.toLowerCase() === h.toLowerCase().trim()
       )
     );
-    
+
     // Find End Time column
-    columnMap.endTime = headers.find(h => 
-      EXCEL_COLUMNS.END_TIME.some(col => 
+    columnMap.endTime = headers.find(h =>
+      EXCEL_COLUMNS.END_TIME.some(col =>
         col.toLowerCase() === h.toLowerCase().trim()
       )
     );
@@ -129,7 +129,7 @@ class ExcelService {
   static validateRequiredColumns(columnMap) {
     const requiredColumns = ['employeeId', 'name', 'date', 'shift', 'startTime', 'endTime'];
     const missing = requiredColumns.filter(col => !columnMap[col]);
-    
+
     if (missing.length > 0) {
       throw ApiError.badRequest(
         `Missing required columns: ${missing.join(', ')}. Expected columns: EmployeeID, Name, Date, Shift, StartTime, EndTime`
@@ -217,7 +217,7 @@ class ExcelService {
     ];
 
     const stringValue = String(value).trim();
-    
+
     for (const format of formats) {
       const parsed = dayjs(stringValue, format, true);
       if (parsed.isValid()) {
@@ -276,7 +276,7 @@ class ExcelService {
    * Save parsed planning data to database
    */
   static async savePlanningData(parsedData, uploadedBy) {
-    const batchId = uuidv4();
+    const batchId = randomUUID();
     const savedEntries = [];
     const errors = [];
 
