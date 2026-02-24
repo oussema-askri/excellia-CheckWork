@@ -11,12 +11,9 @@ const roleOptions = [
 ]
 
 const departmentOptions = [
-  { value: 'Engineering', label: 'Engineering' },
+  { value: 'Direction Production SI', label: 'Direction Production SI' },
   { value: 'HR', label: 'Human Resources' },
-  { value: 'Marketing', label: 'Marketing' },
-  { value: 'Sales', label: 'Sales' },
-  { value: 'Finance', label: 'Finance' },
-  { value: 'Operations', label: 'Operations' },
+  { value: 'Excellia', label: 'Excellia' },
 ]
 
 export default function EmployeeForm({
