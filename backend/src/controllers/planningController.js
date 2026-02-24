@@ -44,7 +44,7 @@ const uploadPlanning = async (req, res, next) => {
         saveErrors: saveResult.errors
       }, `Successfully imported ${saveResult.saved} planning entries`);
     } catch (error) {
-      await fs.unlink(filePath).catch(() => {});
+      await fs.unlink(filePath).catch(() => { });
       throw error;
     }
   } catch (error) {
@@ -66,7 +66,7 @@ const getAllPlanning = async (req, res, next) => {
       endDate,
       employeeId,
       shift,
-      department,
+      position,
       sortBy = 'date',
       sortOrder = 'asc'
     } = req.query;
@@ -108,9 +108,17 @@ const getAllPlanning = async (req, res, next) => {
       .limit(limitNum)
       .lean();
 
-    // If department filter is specified, filter results
-    if (department) {
-      plannings = plannings.filter(p => p.userId?.department === department);
+    const isAdmin = ['admin', 'zitouna'].includes(req.user.role);
+
+    if (isAdmin) {
+      // Admins/zitouna: optional manual position filter via ?position= query param
+      if (position) {
+        plannings = plannings.filter(p => p.userId?.position === position);
+      }
+    } else {
+      // Regular employees: always scoped to their own position — cannot be bypassed
+      const userPosition = req.user.position || '';
+      plannings = plannings.filter(p => p.userId?.position === userPosition);
     }
 
     const total = await Planning.countDocuments(query);
@@ -347,18 +355,18 @@ const downloadTemplate = async (req, res, next) => {
 };
 
 /**
- * @desc    Get all departments (for filter)
- * @route   GET /api/planning/departments
+ * @desc    Get all positions (for filter)
+ * @route   GET /api/planning/positions
  * @access  Private
  */
-const getDepartments = async (req, res, next) => {
+const getPositions = async (req, res, next) => {
   try {
-    const departments = await User.distinct('department', { 
-      department: { $ne: '', $exists: true },
+    const positions = await User.distinct('position', {
+      position: { $ne: '', $exists: true },
       isActive: true
     });
 
-    ApiResponse.success(res, { departments: departments.filter(d => d) });
+    ApiResponse.success(res, { positions: positions.filter(p => p) });
   } catch (error) {
     next(error);
   }
@@ -374,5 +382,5 @@ module.exports = {
   deletePlanning,
   deleteBatch,
   downloadTemplate,
-  getDepartments
+  getPositions
 };
