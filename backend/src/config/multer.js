@@ -1,7 +1,7 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs'); // ✅ Import fs
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const ApiError = require('../utils/ApiError');
 
 // ✅ Ensure directories exist
@@ -20,7 +20,7 @@ const planningStorage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
+    const uniqueName = `${randomUUID()}-${Date.now()}${path.extname(file.originalname)}`;
     cb(null, uniqueName);
   }
 });
@@ -32,10 +32,10 @@ const excelFileFilter = (req, file, cb) => {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/octet-stream'
   ];
-  
+
   const allowedExts = ['.xls', '.xlsx'];
   const ext = path.extname(file.originalname).toLowerCase();
-  
+
   if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
     cb(null, true);
   } else {
