@@ -2,8 +2,15 @@ const path = require('path');
 const fs = require('fs/promises');
 const XlsxPopulate = require('xlsx-populate');
 const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
 require('dayjs/locale/fr');
+dayjs.extend(utc);
+dayjs.extend(timezone);
 dayjs.locale('fr');
+
+// Tunisia is always UTC+1 (no DST)
+const TZ = 'Africa/Tunis';
 
 const Attendance = require('../models/Attendance');
 const Planning = require('../models/Planning');
@@ -51,7 +58,7 @@ const WEEKEND_TASKS = {
 
 function formatRealTimeRange(checkIn, checkOut) {
   if (!checkIn || !checkOut) return '';
-  return `${dayjs(checkIn).format('HH:mm')} - ${dayjs(checkOut).format('HH:mm')}`;
+  return `${dayjs(checkIn).tz(TZ).format('HH:mm')} - ${dayjs(checkOut).tz(TZ).format('HH:mm')}`;
 }
 
 function capitalizeFirst(str) {
