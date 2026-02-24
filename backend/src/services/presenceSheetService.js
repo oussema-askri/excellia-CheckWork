@@ -10,10 +10,44 @@ const Planning = require('../models/Planning');
 const PresenceSheet = require('../models/PresenceSheet');
 const ApiError = require('../utils/ApiError');
 
-const TEMPLATE_PATH = path.join(__dirname, '../templates/feuille_presence_template.xlsx');
+// ─── Role-based configuration ────────────────────────────────────────────────
 
-const TASK_WEEKEND = 'Monitoring Appdynamics/Monétique/Elasticsearch';
-const TASK_WEEKDAY = 'Assurer les tâches quotidiennes de fin de journée et la supervision de système monetique et des sauvegardes';
+/**
+ * Normalise the employee's position string to one of the three known roles:
+ * 'dom' | 'consultant' | 'monetique'
+ * Falls back to 'consultant' if unrecognised.
+ */
+function getEmployeeRole(user) {
+  const pos = (user.position || '').toLowerCase().trim();
+  if (pos.includes('dom')) return 'dom';
+  if (pos.includes('monetique') || pos.includes('monétique')) return 'monetique';
+  return 'consultant'; // default
+}
+
+const TEMPLATE_PATHS = {
+  dom: path.join(__dirname, '../templates/Dom-template.xlsx'),
+  consultant: path.join(__dirname, '../templates/Consultant-template.xlsx'),
+  monetique: path.join(__dirname, '../templates/Monetique-template.xlsx'),
+};
+
+/** Weekday tasks per role */
+const WEEKDAY_TASKS = {
+  dom:
+    'Réception et analyse des tickets entrants, puis attribution des tickets aux groupes de techniciens et aux techniciens spécifiques',
+  consultant:
+    'Assurer les tâches quotidiennes de fin de journée et la supervision de système monétique et des sauvegardes, Traitement des tickets',
+  monetique:
+    'traitement des procedures techniques, Observation Exploitation monétique, Resolutions des tickets',
+};
+
+/** Weekend tasks per role (if needed – falls back to weekday task for now) */
+const WEEKEND_TASKS = {
+  dom: WEEKDAY_TASKS.dom,
+  consultant: 'Monitoring Appdynamics/Monétique/Elasticsearch',
+  monetique: WEEKDAY_TASKS.monetique,
+};
+
+// ─── Utility helpers ─────────────────────────────────────────────────────────
 
 function formatRealTimeRange(checkIn, checkOut) {
   if (!checkIn || !checkOut) return '';
@@ -33,7 +67,8 @@ function getShiftIndex(shiftStr) {
   return null;
 }
 
-// 1. Helper: Scan a single row for headers (Reduces complexity of findHeaders)
+// ─── Sheet scanning helpers ───────────────────────────────────────────────────
+
 function scanRowForHeaders(sheet, rowIndex, maxCol) {
   let dateCol = null;
   let tasksCol = null;
@@ -55,7 +90,6 @@ function scanRowForHeaders(sheet, rowIndex, maxCol) {
   return null;
 }
 
-// 2. Main Header Finder
 async function findHeaders(sheet) {
   const used = sheet.usedRange();
   if (!used) throw ApiError.badRequest('Template sheet appears empty.');
@@ -64,7 +98,6 @@ async function findHeaders(sheet) {
   const maxCol = used.endCell().columnNumber();
 
   for (let r = 1; r <= maxRow; r++) {
-    // Check if this row is the header row using helper
     const headers = scanRowForHeaders(sheet, r, maxCol);
     if (headers) {
       return { headerRow: r, ...headers, maxRow, maxCol };
@@ -91,7 +124,6 @@ async function setLabelValueRight(sheet, labelText, valueToSet) {
   return false;
 }
 
-// 3. Helper for signature scanning
 function scanRowForSignature(sheet, rowIndex, maxCol) {
   let prestataireCol = null;
   let hasResponsable = false;
@@ -114,7 +146,7 @@ async function setSignaturePrestataireBelow(sheet, fullName) {
 
   for (let r = 1; r <= maxRow; r++) {
     const { prestataireCol, hasResponsable } = scanRowForSignature(sheet, r, maxCol);
-    
+
     if (prestataireCol && hasResponsable) {
       sheet.cell(r + 1, prestataireCol).value(fullName);
       return true;
@@ -122,6 +154,8 @@ async function setSignaturePrestataireBelow(sheet, fullName) {
   }
   return false;
 }
+
+// ─── Data fetching ────────────────────────────────────────────────────────────
 
 async function buildMonthMaps(user, year, month) {
   const start = dayjs(`${year}-${String(month).padStart(2, '0')}-01`).startOf('month').toDate();
@@ -144,8 +178,46 @@ async function buildMonthMaps(user, year, month) {
   return { attendanceByDay, planningByDay, daysInMonth: dayjs(start).daysInMonth() };
 }
 
-// 4. Row Filling Logic (Extracted)
-function fillRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, daysInMonth, attendanceByDay, planningByDay }) {
+// ─── Monthly summary ────────────────────────────────────────────────────────
+
+/**
+ * Count worked and absent days for the month, then write the totals to
+ * fixed cells C44 (congé / absences) and C45 (total jours travaillés).
+ */
+function writeMonthlySummary(sheet, { attendanceByDay, daysInMonth, year, month }) {
+  let worked = 0;
+  let absent = 0;
+
+  for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+    const dateObj = dayjs(
+      `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+    );
+    const isWeekend = [0, 6].includes(dateObj.day());
+    if (isWeekend) continue; // only count weekdays
+
+    const a = attendanceByDay.get(dayNum);
+    if (!a) continue; // no record = day not tracked
+
+    if (a.status === 'absent') {
+      absent += 1;
+    } else {
+      worked += 1;
+    }
+  }
+
+  // C44 → congé / absences count
+  sheet.cell(44, 3).value(absent);
+  // C45 → total jours travaillés
+  sheet.cell(45, 3).value(worked);
+}
+
+// ─── Row filling ──────────────────────────────────────────────────────────────
+
+function fillRow(
+  sheet,
+  r,
+  { dateCol, tasksCol, timeCol, dayNum, year, month, daysInMonth, attendanceByDay, planningByDay, role }
+) {
   if (dayNum > daysInMonth) {
     sheet.cell(r, dateCol).value('');
     sheet.cell(r, tasksCol).value('');
@@ -176,17 +248,25 @@ function fillRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, da
   if (shiftIndex === null) {
     sheet.cell(r, tasksCol).value('');
   } else {
-    const task = isWeekend ? TASK_WEEKEND : TASK_WEEKDAY;
+    const task = isWeekend ? WEEKEND_TASKS[role] : WEEKDAY_TASKS[role];
     sheet.cell(r, tasksCol).value(task);
   }
 }
 
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 async function generatePresenceWorkbookBuffer({ user, year, month }) {
-  const wb = await XlsxPopulate.fromFileAsync(TEMPLATE_PATH);
+  // Determine which template to use based on the employee's position
+  const role = getEmployeeRole(user);
+  const templatePath = TEMPLATE_PATHS[role];
+
+  const wb = await XlsxPopulate.fromFileAsync(templatePath);
   const sheet = wb.sheet(0);
 
   await setLabelValueRight(sheet, 'Prestataire', user.name);
-  const period = capitalizeFirst(dayjs(`${year}-${String(month).padStart(2, '0')}-01`).format('MMMM YYYY'));
+  const period = capitalizeFirst(
+    dayjs(`${year}-${String(month).padStart(2, '0')}-01`).format('MMMM YYYY')
+  );
   await setLabelValueRight(sheet, 'Période objet de la facturation', period);
   await setSignaturePrestataireBelow(sheet, user.name);
 
@@ -194,10 +274,18 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
   const { attendanceByDay, planningByDay, daysInMonth } = await buildMonthMaps(user, year, month);
 
   for (let r = headerRow + 1; r <= maxRow; r++) {
-    const dayNum = r - headerRow; 
+    const dayNum = r - headerRow;
     if (dayNum > 31) break;
-    fillRow(sheet, r, { dateCol, tasksCol, timeCol, dayNum, year, month, daysInMonth, attendanceByDay, planningByDay });
+    fillRow(sheet, r, {
+      dateCol, tasksCol, timeCol,
+      dayNum, year, month, daysInMonth,
+      attendanceByDay, planningByDay,
+      role,
+    });
   }
+
+  // Write totals: C44 = absences, C45 = jours travaillés
+  writeMonthlySummary(sheet, { attendanceByDay, daysInMonth, year, month });
 
   return wb.outputAsync();
 }
