@@ -245,11 +245,13 @@ function fillRow(
   const realTime = a ? formatRealTimeRange(a.checkIn, a.checkOut) : '';
   sheet.cell(r, timeCol).value(realTime);
 
-  if (shiftIndex === null) {
-    sheet.cell(r, tasksCol).value('');
-  } else {
+  // Only write the task if the employee actually checked in AND checked out
+  const didWork = a && a.checkIn && a.checkOut;
+  if (didWork) {
     const task = isWeekend ? WEEKEND_TASKS[role] : WEEKDAY_TASKS[role];
     sheet.cell(r, tasksCol).value(task);
+  } else {
+    sheet.cell(r, tasksCol).value('');
   }
 }
 
