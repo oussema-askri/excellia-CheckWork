@@ -65,7 +65,14 @@ export const attendanceApi = {
     const response = await axios.get('/attendance/wassalni', { params })
     return response
   },
-
+  markAbsent: async (data) => {
+    // Check if data is FormData
+    const isFormData = data instanceof FormData;
+    const response = await axios.post('/attendance/absent', data, {
+      headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : {}
+    })
+    return response
+  },
   // ✅ NEW: Export Excel
   exportWassalni: async (params = {}) => {
     const response = await axios.get('/attendance/wassalni/export', {
