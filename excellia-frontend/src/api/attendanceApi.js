@@ -61,9 +61,17 @@ export const attendanceApi = {
     return response
   },
 
-  // ✅ NEW
   getWassalniStats: async (params = {}) => {
     const response = await axios.get('/attendance/wassalni', { params })
+    return response
+  },
+
+  // ✅ NEW: Export Excel
+  exportWassalni: async (params = {}) => {
+    const response = await axios.get('/attendance/wassalni/export', {
+      params,
+      responseType: 'blob'
+    })
     return response
   }
 }

@@ -1,5 +1,6 @@
 const dayjs = require('dayjs');
 const mongoose = require('mongoose');
+const XlsxPopulate = require('xlsx-populate'); // Ensure this is installed
 const Attendance = require('../models/Attendance');
 const ApiError = require('../utils/ApiError');
 const { distanceMeters } = require('../utils/geo');
@@ -29,10 +30,7 @@ class AttendanceService {
     const today = new Date();
     const { start, end } = getDateBounds(today);
 
-    let attendance = await Attendance.findOne({
-      userId,
-      date: { $gte: start, $lte: end }
-    });
+    let attendance = await Attendance.findOne({ userId, date: { $gte: start, $lte: end } });
 
     if (attendance && (attendance.status === ATTENDANCE_STATUS.ABSENT || attendance.status === ATTENDANCE_STATUS.PENDING_ABSENCE)) {
       throw ApiError.badRequest('You have marked absence for today.');
@@ -49,14 +47,10 @@ class AttendanceService {
     attendance.checkIn = new Date();
     attendance.status = ATTENDANCE_STATUS.PRESENT;
     if (notes) attendance.notes = notes;
-    
-    // ✅ PUSH Transport Method (In)
+    if (location) attendance.checkInLocation = { latitude: location.latitude, longitude: location.longitude, address: location.address || '' };
+
     if (transportMethod && transportMethod !== 'none') {
       attendance.transportEvents.push(transportMethod);
-    }
-
-    if (location) {
-      attendance.checkInLocation = { latitude: location.latitude, longitude: location.longitude, address: location.address || '' };
     }
 
     const checkInTime = dayjs(attendance.checkIn);
@@ -70,11 +64,7 @@ class AttendanceService {
   static async checkOut(userId, location = null, notes = '', transportMethod = 'none') {
     const today = new Date();
     const { start, end } = getDateBounds(today);
-
-    const attendance = await Attendance.findOne({
-      userId,
-      date: { $gte: start, $lte: end }
-    });
+    const attendance = await Attendance.findOne({ userId, date: { $gte: start, $lte: end } });
 
     if (!attendance) throw ApiError.badRequest('No check-in found for today');
     if (attendance.status === ATTENDANCE_STATUS.ABSENT || attendance.status === ATTENDANCE_STATUS.PENDING_ABSENCE) throw ApiError.badRequest('Marked as absent.');
@@ -83,15 +73,14 @@ class AttendanceService {
 
     attendance.checkOut = new Date();
     
-    // ✅ PUSH Transport Method (Out) - adds a second entry to the array
-    if (transportMethod && transportMethod !== 'none') {
-      attendance.transportEvents.push(transportMethod);
-    }
-    
     if (location) {
       attendance.checkOutLocation = { latitude: location.latitude, longitude: location.longitude, address: location.address || '' };
     }
     if (notes) attendance.notes = attendance.notes ? `${attendance.notes}; ${notes}` : notes;
+
+    if (transportMethod && transportMethod !== 'none') {
+      attendance.transportEvents.push(transportMethod);
+    }
 
     await attendance.save();
     return attendance;
@@ -181,51 +170,144 @@ class AttendanceService {
     return { summary, attendances };
   }
 
-  // ✅ UPDATED: Count occurrences in array
   static async getWassalniStats(startDate, endDate, employeeId = null) {
     const start = dayjs(startDate).startOf('day').toDate();
     const end = dayjs(endDate).endOf('day').toDate();
 
     const matchQuery = {
       date: { $gte: start, $lte: end },
-      transportEvents: 'wassalni' // Check if array contains 'wassalni'
+      transportEvents: 'wassalni'
     };
 
     if (employeeId) matchQuery.userId = new mongoose.Types.ObjectId(employeeId);
 
-    // 1. Total Courses
+    const projectStage = {
+      userId: 1,
+      coursesCount: {
+        $size: {
+          $filter: {
+            input: '$transportEvents',
+            as: 't',
+            cond: { $eq: ['$$t', 'wassalni'] }
+          }
+        }
+      }
+    };
+
     const totalAgg = await Attendance.aggregate([
       { $match: matchQuery },
-      { $unwind: '$transportEvents' },
-      { $match: { transportEvents: 'wassalni' } },
-      { $count: 'total' }
+      { $project: projectStage },
+      { $group: { _id: null, total: { $sum: '$coursesCount' } } }
     ]);
     const totalCourses = totalAgg[0]?.total || 0;
 
-    // 2. By Department
     const byDepartment = await Attendance.aggregate([
       { $match: matchQuery },
-      { $unwind: '$transportEvents' },
-      { $match: { transportEvents: 'wassalni' } },
       { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
       { $unwind: '$user' },
-      { $group: { _id: '$user.department', count: { $sum: 1 } } },
+      { $project: { 'user.department': 1, ...projectStage } },
+      { $group: { _id: '$user.department', count: { $sum: '$coursesCount' } } },
       { $sort: { count: -1 } }
     ]);
 
-    // 3. By Employee
     const byEmployee = await Attendance.aggregate([
       { $match: matchQuery },
-      { $unwind: '$transportEvents' },
-      { $match: { transportEvents: 'wassalni' } },
       { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
       { $unwind: '$user' },
-      { $group: { _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' }, count: { $sum: 1 } } },
+      { $project: { 'user.employeeId': 1, 'user.name': 1, 'user.department': 1, ...projectStage } },
+      { $group: { _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' }, count: { $sum: '$coursesCount' } } },
       { $sort: { count: -1 } },
       { $limit: 20 }
     ]);
 
     return { totalCourses, byDepartment, byEmployee };
+  }
+
+  // ✅ NEW: Generate Wassalni Excel
+  static async generateWassalniExcel(startDate, endDate, employeeId = null) {
+    const start = dayjs(startDate).startOf('day').toDate();
+    const end = dayjs(endDate).endOf('day').toDate();
+
+    const matchQuery = {
+      date: { $gte: start, $lte: end },
+      transportEvents: 'wassalni'
+    };
+
+    if (employeeId) matchQuery.userId = new mongoose.Types.ObjectId(employeeId);
+
+    // Fetch data flattened by day
+    const records = await Attendance.aggregate([
+      { $match: matchQuery },
+      { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+      { $unwind: '$user' },
+      {
+        $project: {
+          employeeId: '$user.employeeId',
+          name: '$user.name',
+          department: '$user.department',
+          date: '$date',
+          courses: {
+            $size: {
+              $filter: {
+                input: '$transportEvents',
+                as: 't',
+                cond: { $eq: ['$$t', 'wassalni'] }
+              }
+            }
+          }
+        }
+      },
+      { $sort: { employeeId: 1, date: 1 } }
+    ]);
+
+    // Generate Excel
+    const wb = await XlsxPopulate.fromBlankAsync();
+    const sheet = wb.sheet(0);
+
+    // Header Style
+    const headerStyle = (cell) => {
+      cell.style({
+        fill: 'ed7d31', // Orange color like screenshot
+        fontColor: 'ffffff',
+        bold: true,
+        horizontalAlignment: 'left'
+      });
+    };
+
+    // Headers
+    sheet.cell('A1').value('EmployeeID').tap(headerStyle);
+    sheet.cell('B1').value('Name').tap(headerStyle);
+    sheet.cell('C1').value('Date').tap(headerStyle);
+    sheet.cell('D1').value('Department').tap(headerStyle);
+    sheet.cell('E1').value('Courses').tap(headerStyle);
+
+    // Data Rows
+    let row = 2;
+    let totalCourses = 0;
+
+    records.forEach(rec => {
+      sheet.cell(`A${row}`).value(rec.employeeId);
+      sheet.cell(`B${row}`).value(rec.name);
+      sheet.cell(`C${row}`).value(dayjs(rec.date).format('YYYY-MM-DD'));
+      sheet.cell(`D${row}`).value(rec.department);
+      sheet.cell(`E${row}`).value(rec.courses).style({ horizontalAlignment: 'center' });
+      
+      totalCourses += rec.courses;
+      row++;
+    });
+
+    // Total Row
+    sheet.cell(`A${row}`).value('Total Courses').style({ bold: true });
+    sheet.cell(`E${row}`).value(totalCourses).style({ bold: true, horizontalAlignment: 'center' });
+
+    // Auto-width columns
+    sheet.column('A').width(15);
+    sheet.column('B').width(25);
+    sheet.column('C').width(15);
+    sheet.column('D').width(30);
+    sheet.column('E').width(10);
+
+    return wb.outputAsync();
   }
 }
 

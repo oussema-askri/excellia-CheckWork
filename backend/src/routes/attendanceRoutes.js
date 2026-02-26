@@ -2,31 +2,19 @@ const express = require('express');
 const router = express.Router();
 
 const {
-  checkIn,
-  checkOut,
-  markAbsent,
-  approveAbsence,
-  rejectAbsence,
-  getTodayAttendance,
-  getMyAttendance,
-  getAllAttendance,
-  getUserAttendance,
-  updateAttendance,
-  deleteAttendance,
-  getAttendanceStats,
-  getAttendanceReport,
-  getWassalniStats // ✅ NEW
+  checkIn, checkOut, markAbsent,
+  approveAbsence, rejectAbsence,
+  getTodayAttendance, getMyAttendance, getAllAttendance, getUserAttendance,
+  updateAttendance, deleteAttendance, getAttendanceStats, getAttendanceReport,
+  getWassalniStats, exportWassalniStats // ✅ NEW
 } = require('../controllers/attendanceController');
 
 const { protect } = require('../middleware/auth');
 const { adminOnly, authorize } = require('../middleware/roleCheck');
 const validate = require('../middleware/validate');
 const {
-  checkInValidator,
-  checkOutValidator,
-  updateAttendanceValidator,
-  listAttendanceValidator,
-  attendanceIdValidator
+  checkInValidator, checkOutValidator, updateAttendanceValidator,
+  listAttendanceValidator, attendanceIdValidator
 } = require('../validators/attendanceValidator');
 
 router.use(protect);
@@ -37,7 +25,8 @@ router.post('/absent', markAbsent);
 router.get('/today', getTodayAttendance);
 router.get('/my', listAttendanceValidator, validate, getMyAttendance);
 
-// ✅ Wassalni Stats (Admin/Zitouna)
+// Wassalni (Order matters: specific routes before /:id)
+router.get('/wassalni/export', authorize('admin', 'zitouna'), exportWassalniStats); // ✅ NEW ROUTE
 router.get('/wassalni', authorize('admin', 'zitouna'), getWassalniStats);
 
 router.get('/', authorize('admin', 'zitouna'), listAttendanceValidator, validate, getAllAttendance);

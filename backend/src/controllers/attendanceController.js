@@ -15,7 +15,6 @@ const checkIn = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-// ✅ Updated checkOut
 const checkOut = async (req, res, next) => {
   try {
     const { notes, location, transportMethod } = req.body;
@@ -167,9 +166,24 @@ const getWassalniStats = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// ✅ NEW: Export Endpoint
+const exportWassalniStats = async (req, res, next) => {
+  try {
+    const { startDate, endDate, employeeId } = req.query;
+    const start = startDate || dayjs().startOf('month').format('YYYY-MM-DD');
+    const end = endDate || dayjs().endOf('month').format('YYYY-MM-DD');
+
+    const buffer = await AttendanceService.generateWassalniExcel(start, end, employeeId);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Wassalni_Report_${start}_to_${end}.xlsx"`);
+    res.send(buffer);
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   checkIn, checkOut, markAbsent, approveAbsence, rejectAbsence,
   getTodayAttendance, getMyAttendance, getAllAttendance, getUserAttendance,
   updateAttendance, deleteAttendance, getAttendanceStats, getAttendanceReport,
-  getWassalniStats
+  getWassalniStats, exportWassalniStats // ✅ Exported
 };

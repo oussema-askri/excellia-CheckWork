@@ -7,7 +7,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg:white from-primary-600 to-primary-800 dark:from-gray-900 dark:to-gray-800 py-12 px-4 sm:px-6 lg:px-8">
-      {/* Dark Mode Toggle */}
       <button
         onClick={toggleDarkMode}
         className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"

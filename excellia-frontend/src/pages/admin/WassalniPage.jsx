@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { TruckIcon, CalendarIcon, FunnelIcon } from '@heroicons/react/24/outline'
+import { TruckIcon, CalendarIcon, FunnelIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import dayjs from 'dayjs'
 import attendanceApi from '../../api/attendanceApi'
@@ -14,13 +14,13 @@ export default function WassalniPage() {
   const [stats, setStats] = useState(null)
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
   const [filters, setFilters] = useState({
     startDate: dayjs().startOf('month').format('YYYY-MM-DD'),
     endDate: dayjs().endOf('month').format('YYYY-MM-DD'),
     employeeId: '',
   })
 
-  // Load Employees for Dropdown
   useEffect(() => {
     const loadEmployees = async () => {
       try {
@@ -49,6 +49,28 @@ export default function WassalniPage() {
     }
   }
 
+  const handleDownload = async () => {
+    try {
+      setDownloading(true)
+      const blob = await attendanceApi.exportWassalni(filters)
+      
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Wassalni_Report_${filters.startDate}_to_${filters.endDate}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      
+      toast.success('Report downloaded')
+    } catch (e) {
+      toast.error('Download failed')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const setLastMonth = () => {
     setFilters({
       ...filters,
@@ -72,9 +94,15 @@ export default function WassalniPage() {
           </h1>
           <p className="text-gray-500 dark:text-gray-400">Track taxi courses and transportation usage.</p>
         </div>
-        <Button variant="secondary" onClick={setLastMonth} icon={CalendarIcon}>
-          Last Month
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={setLastMonth} icon={CalendarIcon}>
+            Last Month
+          </Button>
+          {/* ✅ Download Button */}
+          <Button onClick={handleDownload} loading={downloading} icon={ArrowDownTrayIcon}>
+            Download Report
+          </Button>
+        </div>
       </div>
 
       <Card className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
@@ -107,7 +135,6 @@ export default function WassalniPage() {
 
       {loading ? <div className="py-12"><Loading /></div> : (
         <>
-          {/* Total Counter */}
           <Card className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-lg transform hover:scale-[1.01] transition-all">
             <div className="text-center py-6">
               <p className="text-xl font-medium opacity-90">Total Courses (Wassalni)</p>
@@ -117,7 +144,6 @@ export default function WassalniPage() {
           </Card>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* By Department */}
             <Card title="By Department" className="dark:bg-gray-800 dark:border-gray-700 h-full">
               <div className="space-y-3 mt-2">
                 {stats?.byDepartment?.map((dept, idx) => (
@@ -132,7 +158,6 @@ export default function WassalniPage() {
               </div>
             </Card>
 
-            {/* Top Employees */}
             <Card title={filters.employeeId ? "Selected Employee" : "Top Employees"} className="dark:bg-gray-800 dark:border-gray-700 h-full">
               <div className="space-y-3 mt-2">
                 {stats?.byEmployee?.map((emp, idx) => (
