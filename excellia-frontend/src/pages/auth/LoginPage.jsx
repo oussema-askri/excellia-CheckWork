@@ -29,17 +29,14 @@ export default function LoginPage() {
         {/* Login Card */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome</h2>
             <p className="text-gray-500 dark:text-gray-400 mt-1">Sign in to your account</p>
           </div>
 
           <LoginForm />
         </div>
 
-        {/* Footer */}
-        <p className="mt-8 text-center text-sm text-primary-200 dark:text-gray-500">
-          © 2024 Excellia. All rights reserved.
-        </p>
+        
       </div>
     </div>
   )
