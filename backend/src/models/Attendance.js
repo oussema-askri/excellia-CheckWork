@@ -12,12 +12,10 @@ const attendanceSchema = new mongoose.Schema({
     default: 'present' 
   },
   
-  // Transport
   transportMethodIn: { type: String, enum: ['wassalni', 'personal', 'none'], default: 'none' },
   transportMethodOut: { type: String, enum: ['wassalni', 'personal', 'none'], default: 'none' },
-  transportEvents: { type: [String], default: [] }, // Legacy support
+  transportEvents: { type: [String], default: [] },
 
-  // Absence Info
   absenceType: { type: String, default: '' },
   absenceReason: { type: String, default: '' },
   attachment: { type: String, default: '' },
@@ -33,17 +31,34 @@ attendanceSchema.index({ userId: 1, date: 1 }, { unique: true });
 attendanceSchema.index({ date: 1 });
 attendanceSchema.index({ status: 1 });
 
+// ✅ FIX: Standard function using 'next', NOT async.
+// Using async + next() together causes issues in some Mongoose versions.
 attendanceSchema.pre('save', function(next) {
   if (this.checkIn && this.checkOut) {
     const checkInTime = dayjs(this.checkIn);
     const checkOutTime = dayjs(this.checkOut);
-    this.workHours = Math.max(0, parseFloat(checkOutTime.diff(checkInTime, 'hour', true).toFixed(2)));
-    if (this.workHours > 8) this.overtimeHours = parseFloat((this.workHours - 8).toFixed(2));
+    const diffHours = checkOutTime.diff(checkInTime, 'hour', true);
+    this.workHours = Math.max(0, parseFloat(diffHours.toFixed(2)));
+    
+    if (this.workHours > 8) {
+      this.overtimeHours = parseFloat((this.workHours - 8).toFixed(2));
+    }
   }
   next();
 });
 
-// ✅ RE-ADDED MISSING STATIC METHODS
+attendanceSchema.virtual('formattedDate').get(function() {
+  return dayjs(this.date).format('YYYY-MM-DD');
+});
+
+attendanceSchema.virtual('formattedCheckIn').get(function() {
+  return this.checkIn ? dayjs(this.checkIn).format('HH:mm:ss') : null;
+});
+
+attendanceSchema.virtual('formattedCheckOut').get(function() {
+  return this.checkOut ? dayjs(this.checkOut).format('HH:mm:ss') : null;
+});
+
 attendanceSchema.statics.getTodayAttendance = async function(userId) {
   const startOfDay = dayjs().startOf('day').toDate();
   const endOfDay = dayjs().endOf('day').toDate();

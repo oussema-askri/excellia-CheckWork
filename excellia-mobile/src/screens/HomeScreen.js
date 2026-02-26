@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Linking, ScrollView, RefreshControl, Modal, TextInput, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Linking, ScrollView, RefreshControl, Modal, TextInput } from 'react-native';
 import dayjs from 'dayjs';
 import * as Location from 'expo-location';
-import * as DocumentPicker from 'expo-document-picker'; // ✅
+import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -23,6 +23,8 @@ const StatItem = ({ label, value }) => (
   </View>
 );
 
+StatItem.propTypes = { label: PropTypes.string.isRequired, value: PropTypes.string.isRequired };
+
 const ActionButton = ({ loading, checkedIn, onPress }) => (
   <Pressable
     style={[styles.actionBtn, checkedIn ? styles.btnDanger : styles.btnSuccess, loading ? styles.btnDisabled : {}]}
@@ -33,11 +35,15 @@ const ActionButton = ({ loading, checkedIn, onPress }) => (
   </Pressable>
 );
 
+ActionButton.propTypes = { loading: PropTypes.bool.isRequired, checkedIn: PropTypes.bool.isRequired, onPress: PropTypes.func.isRequired };
+
 const StatusBanner = ({ status }) => {
   if (status === 'pending-absence') return <View style={[styles.completedContainer, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}><Ionicons name="time" size={48} color={colors.warning} /><Text style={[styles.completedText, { color: colors.warning }]}>Request Pending</Text></View>;
   if (status === 'absent') return <View style={styles.completedContainer}><Ionicons name="alert-circle" size={48} color={colors.danger} /><Text style={[styles.completedText, { color: colors.danger }]}>Marked Absent</Text></View>;
   return <View style={styles.completedContainer}><Ionicons name="checkmark-circle" size={48} color={colors.success} /><Text style={styles.completedText}>Workday Completed</Text></View>;
 };
+
+StatusBanner.propTypes = { status: PropTypes.string };
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -47,7 +53,6 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Absence Modal State
   const [modalVisible, setModalVisible] = useState(false);
   const [absenceType, setAbsenceType] = useState('Repos');
   const [reason, setReason] = useState('');
@@ -132,7 +137,8 @@ export default function HomeScreen() {
   const submitAbsence = async () => {
     if (!absenceType) return Alert.alert('Error', 'Please select a type');
     if (!reason) return Alert.alert('Error', 'Please enter a reason');
-    if (absenceType === 'Maladie' && !file) return Alert.alert('Error', 'Medical certificate is required for Maladie');
+    
+    // ✅ Optional file for Maladie (removed mandatory check)
 
     setLoading(true);
     try {
@@ -205,7 +211,6 @@ export default function HomeScreen() {
           </Pressable>
         )}
 
-        {/* ABSENCE MODAL */}
         <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -226,15 +231,13 @@ export default function HomeScreen() {
               <Text style={styles.inputLabel}>Reason</Text>
               <TextInput style={styles.textArea} multiline numberOfLines={3} placeholder="Why are you absent?" placeholderTextColor={colors.textSecondary} value={reason} onChangeText={setReason} />
 
-              {absenceType === 'Maladie' && (
-                <View style={styles.fileSection}>
-                  <Text style={styles.inputLabel}>Medical Certificate (Optional)</Text>
-                  <Pressable onPress={handlePickDocument} style={styles.fileBtn}>
-                    <Ionicons name="attach" size={20} color={colors.primary} />
-                    <Text style={styles.fileBtnText}>{file ? file.name : 'Attach File (Image/PDF)'}</Text>
-                  </Pressable>
-                </View>
-              )}
+              <View style={styles.fileSection}>
+                <Text style={styles.inputLabel}>Attachment (Optional)</Text>
+                <Pressable onPress={handlePickDocument} style={styles.fileBtn}>
+                  <Ionicons name="attach" size={20} color={colors.primary} />
+                  <Text style={styles.fileBtnText}>{file ? file.name : 'Attach File (Image/PDF)'}</Text>
+                </Pressable>
+              </View>
 
               <Pressable style={styles.submitBtn} onPress={submitAbsence} disabled={loading}>
                 {loading ? <ActivityIndicator color="white" /> : <Text style={styles.submitBtnText}>Submit Request</Text>}
@@ -242,6 +245,11 @@ export default function HomeScreen() {
             </View>
           </View>
         </Modal>
+
+        <View style={styles.infoCard}>
+          <Ionicons name="location-outline" size={24} color={colors.primary} />
+          <Text style={styles.infoText}>Location services are active. You must be within the geofence to check in.</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -274,7 +282,6 @@ const styles = StyleSheet.create({
   absentBtn: { flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 20 },
   absentText: { color: '#ef4444', fontWeight: '700', fontSize: 16 },
   
-  // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: colors.card, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, padding: spacing.lg, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },
