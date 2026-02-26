@@ -11,19 +11,16 @@ import dayjs from 'dayjs'
 export default function RequestsPage() {
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showHistory, setShowHistory] = useState(false) // Toggle history
+  const [showHistory, setShowHistory] = useState(false)
 
   const fetchRequests = async () => {
     try {
       setLoading(true)
-      // If history, show all statuses except present/late. If not, only pending.
       const statusFilter = showHistory ? '' : 'pending-absence';
       
       const response = await attendanceApi.getAll({ 
         limit: 100, 
         status: statusFilter,
-        // For history we might need to filter more specifically in backend or here
-        // But getAll supports status param.
       })
       
       let data = response.data || [];
@@ -53,6 +50,28 @@ export default function RequestsPage() {
     catch (e) { toast.error('Failed to reject'); }
   }
 
+  // ✅ Helper to format file URL
+  const getFileUrl = (path) => {
+    if (!path) return '#';
+    
+    // DB stores: "/app/uploads/absence/file.jpg"
+    // We want: "/api/uploads/absence/file.jpg" (via Nginx proxy)
+    // OR: "/uploads/absence/file.jpg" (if Nginx handles /uploads directly)
+
+    // Remove "/app/" if present
+    let cleanPath = path.replace('/app/', '');
+    
+    // Ensure it starts with uploads/
+    if (cleanPath.startsWith('/')) cleanPath = cleanPath.substring(1);
+
+    // Use backend URL base
+    const baseUrl = import.meta.env.VITE_API_URL.replace(/\/api$/, '');
+    
+    // Return: http://IP/api/uploads/absence/...
+    // Nginx routes /api -> Backend -> Express static serves uploads
+    return `${baseUrl}/api/${cleanPath}`;
+  };
+
   const columns = [
     {
       header: 'Employee',
@@ -78,7 +97,12 @@ export default function RequestsPage() {
     {
       header: 'Attachment',
       render: (row) => row.attachment ? (
-        <a href={`${import.meta.env.VITE_API_URL.replace('/api', '')}/${row.attachment}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-indigo-600 hover:underline text-sm">
+        <a 
+          href={getFileUrl(row.attachment)} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="flex items-center text-indigo-600 hover:underline text-sm"
+        >
           <DocumentIcon className="w-4 h-4 mr-1" /> View File
         </a>
       ) : <span className="text-xs text-gray-400">None</span>
