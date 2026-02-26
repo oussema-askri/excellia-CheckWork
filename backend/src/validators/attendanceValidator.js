@@ -2,66 +2,34 @@ const { body, param, query } = require('express-validator');
 const { isValidObjectId } = require('../utils/helpers');
 
 const checkInValidator = [
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters'),
-  body('location')
-    .optional()
-    .isObject().withMessage('Location must be an object'),
-  body('location.latitude')
-    .optional()
-    .isFloat({ min: -90, max: 90 }).withMessage('Invalid latitude'),
-  body('location.longitude')
-    .optional()
-    .isFloat({ min: -180, max: 180 }).withMessage('Invalid longitude')
+  body('notes').optional().trim().isLength({ max: 500 }),
+  body('location').optional().isObject(),
 ];
 
 const checkOutValidator = [
-  body('notes')
-    .optional()
-    .trim()
-    .isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters'),
-  body('location')
-    .optional()
-    .isObject().withMessage('Location must be an object')
+  body('notes').optional().trim().isLength({ max: 500 }),
+  body('location').optional().isObject()
 ];
 
 const updateAttendanceValidator = [
-  param('id')
-    .custom(value => {
-      if (!isValidObjectId(value)) throw new Error('Invalid attendance ID');
-      return true;
-    }),
-  body('checkIn').optional().isISO8601().withMessage('Check-in must be a valid date'),
-  body('checkOut').optional().isISO8601().withMessage('Check-out must be a valid date'),
-  body('status')
-    .optional()
-    .isIn(['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence']) // ✅ Added pending-absence
-    .withMessage('Invalid status'),
-  body('notes').optional().trim().isLength({ max: 500 })
+  param('id').custom(value => isValidObjectId(value) ? true : Promise.reject('Invalid ID')),
+  body('status').optional().isIn(['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence'])
 ];
 
 const listAttendanceValidator = [
-  query('page').optional().isInt({ min: 1 }).toInt(),
-  query('limit').optional().isInt({ min: 1, max: 1000 }).toInt(),
-  query('startDate').optional().isISO8601(),
-  query('endDate').optional().isISO8601(),
-  query('status')
-    .optional()
-    .isIn(['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence']) // ✅ Added pending-absence
-    .withMessage('Invalid status'),
-  query('userId').optional().custom(value => {
-    if (value && !isValidObjectId(value)) throw new Error('Invalid user ID');
+  query('page').optional().toInt(),
+  query('limit').optional().toInt(),
+  // ✅ FIX: Allow empty status string
+  query('status').optional().custom(val => {
+    if (val === '') return true; // Allow empty
+    const allowed = ['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence'];
+    if (!allowed.includes(val)) throw new Error('Invalid status');
     return true;
   })
 ];
 
 const attendanceIdValidator = [
-  param('id').custom(value => {
-    if (!isValidObjectId(value)) throw new Error('Invalid attendance ID');
-    return true;
-  })
+  param('id').custom(value => isValidObjectId(value) ? true : Promise.reject('Invalid ID'))
 ];
 
 module.exports = {
