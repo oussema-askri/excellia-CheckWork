@@ -26,15 +26,15 @@ const checkOut = async (req, res, next) => {
 
 const markAbsent = async (req, res, next) => {
   try {
+    // ✅ Handle multipart form data
     const { notes, type, reason } = req.body;
-    const file = req.file; // From multer
+    const file = req.file;
 
-    const attendance = await AttendanceService.markAbsent(req.user._id, { 
-      notes, type, reason, file 
-    });
+    const data = { notes, type, reason, file };
+    const attendance = await AttendanceService.markAbsent(req.user._id, data);
     
     await attendance.populate('userId', 'name employeeId email');
-    ApiResponse.success(res, { attendance }, 'Request submitted');
+    ApiResponse.success(res, { attendance }, 'Marked as absent (Pending Approval)');
   } catch (error) { next(error); }
 };
 
@@ -171,9 +171,7 @@ const getWassalniStats = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-
-
-// ✅ NEW: Export Endpoint
+// ✅ WASSALNI EXPORT (Required)
 const exportWassalniStats = async (req, res, next) => {
   try {
     const { startDate, endDate, employeeId } = req.query;
