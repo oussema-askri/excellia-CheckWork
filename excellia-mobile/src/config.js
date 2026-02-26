@@ -2,6 +2,6 @@
 // Android emulator: http://10.0.2.2:5000/api
 // iOS simulator: http://localhost:5000/api
 // Real phone: http://YOUR_PC_IP:5000/api
-export const API_BASE_URL = 'http://xtime.excellia.tn/api';
+export const API_BASE_URL = 'https://xtime.excellia.tn/api';
 
 export const APP_NAME = 'Excellia Mobile';
