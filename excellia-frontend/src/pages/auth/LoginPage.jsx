@@ -23,7 +23,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full">
         {/* Logo & Title */}
         <div className="w-80 h-auto mb-6 mx-auto">
-          <img src="/logo/logo.png" alt="Excellia" className="h-20 w-auto mb-6 mx-auto object-contain" />
+          <img src="/logo/excellia.png" alt="Excellia" className="h-20 w-auto mb-6 mx-auto object-contain" />
         </div>
 
         {/* Login Card */}
