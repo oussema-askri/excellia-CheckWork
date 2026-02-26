@@ -6,12 +6,13 @@ const {
   approveAbsence, rejectAbsence,
   getTodayAttendance, getMyAttendance, getAllAttendance, getUserAttendance,
   updateAttendance, deleteAttendance, getAttendanceStats, getAttendanceReport,
-  getWassalniStats, exportWassalniStats // ✅ NEW
+  getWassalniStats, exportWassalniStats
 } = require('../controllers/attendanceController');
 
 const { protect } = require('../middleware/auth');
 const { adminOnly, authorize } = require('../middleware/roleCheck');
 const validate = require('../middleware/validate');
+const { uploadAbsence } = require('../config/multer'); // ✅ Import
 const {
   checkInValidator, checkOutValidator, updateAttendanceValidator,
   listAttendanceValidator, attendanceIdValidator
@@ -21,12 +22,14 @@ router.use(protect);
 
 router.post('/check-in', checkInValidator, validate, checkIn);
 router.post('/check-out', checkOutValidator, validate, checkOut);
-router.post('/absent', markAbsent);
+
+// ✅ Use Multer for file upload
+router.post('/absent', uploadAbsence.single('file'), markAbsent);
+
 router.get('/today', getTodayAttendance);
 router.get('/my', listAttendanceValidator, validate, getMyAttendance);
 
-// Wassalni (Order matters: specific routes before /:id)
-router.get('/wassalni/export', authorize('admin', 'zitouna'), exportWassalniStats); // ✅ NEW ROUTE
+router.get('/wassalni/export', authorize('admin', 'zitouna'), exportWassalniStats);
 router.get('/wassalni', authorize('admin', 'zitouna'), getWassalniStats);
 
 router.get('/', authorize('admin', 'zitouna'), listAttendanceValidator, validate, getAllAttendance);

@@ -1,23 +1,22 @@
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs'); // ✅ Import fs
+const fs = require('fs');
 const { randomUUID } = require('crypto');
 const ApiError = require('../utils/ApiError');
 
-// ✅ Ensure directories exist
-const uploadDir = path.join(__dirname, '../../uploads/planning');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Ensure directories exist
+const planningDir = path.join(__dirname, '../../uploads/planning');
+const absenceDir = path.join(__dirname, '../../uploads/absence');
 
-// Storage configuration for planning Excel files
-const planningStorage = multer.diskStorage({
+[planningDir, absenceDir].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+// Generic Storage Generator
+const createStorage = (folder) => multer.diskStorage({
   destination: (req, file, cb) => {
-    // Re-check inside (just in case)
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+    if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+    cb(null, folder);
   },
   filename: (req, file, cb) => {
     const uniqueName = `${randomUUID()}-${Date.now()}${path.extname(file.originalname)}`;
@@ -25,33 +24,33 @@ const planningStorage = multer.diskStorage({
   }
 });
 
-// File filter for Excel files
-const excelFileFilter = (req, file, cb) => {
-  const allowedMimes = [
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/octet-stream'
-  ];
-
-  const allowedExts = ['.xls', '.xlsx'];
-  const ext = path.extname(file.originalname).toLowerCase();
-
-  if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
-    cb(null, true);
-  } else {
-    cb(new ApiError(400, 'Only Excel files (.xls, .xlsx) are allowed'), false);
-  }
-};
-
-// Upload configurations
+// Planning Upload
 const uploadPlanning = multer({
-  storage: planningStorage,
-  fileFilter: excelFileFilter,
-  limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // 10MB
-  }
+  storage: createStorage(planningDir),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.includes('excel') || file.mimetype.includes('spreadsheet') || file.originalname.match(/\.(xls|xlsx)$/)) {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, 'Only Excel files allowed'), false);
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+// ✅ Absence Upload (Images/PDF)
+const uploadAbsence = multer({
+  storage: createStorage(absenceDir),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new ApiError(400, 'Only Images and PDF allowed'), false);
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 module.exports = {
-  uploadPlanning
+  uploadPlanning,
+  uploadAbsence // ✅ Exported
 };
