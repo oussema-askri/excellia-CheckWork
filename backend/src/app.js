@@ -65,8 +65,12 @@ if (process.env.NODE_ENV === 'development') {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static files
+
+// ✅ 5. STATIC FILES (Double Mount Fix)
+// Serve on /uploads (direct access)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve on /api/uploads (proxied access)
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Health check route
 app.get('/health', (req, res) => {
