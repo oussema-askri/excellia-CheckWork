@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Menu, Transition } from '@headlessui/react'
 import {
   Bars3Icon,
+  KeyIcon,
   UserCircleIcon,
   ArrowRightOnRectangleIcon,
   SunIcon,
@@ -27,7 +28,7 @@ export default function Navbar({ onMenuClick }) {
             >
               <Bars3Icon className="h-6 w-6" />
             </button>
-            
+
           </div>
 
           {/* Right side */}
@@ -74,30 +75,41 @@ export default function Navbar({ onMenuClick }) {
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.name}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
                     </div>
-                    
+
                     <Menu.Item>
                       {({ active }) => (
                         <Link
                           to={user?.role === 'admin' ? '/admin/dashboard' : '/employee/dashboard'}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 ${
-                            active ? 'bg-gray-100 dark:bg-gray-700' : ''
-                          }`}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 ${active ? 'bg-gray-100 dark:bg-gray-700' : ''
+                            }`}
                         >
                           <UserCircleIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                           Dashboard
                         </Link>
                       )}
                     </Menu.Item>
-                    
+
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to={['admin', 'zitouna'].includes(user?.role) ? '/admin/profile' : '/employee/profile'}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-300 ${active ? 'bg-gray-100 dark:bg-gray-700' : ''
+                            }`}
+                        >
+                          <KeyIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                          My Profile
+                        </Link>
+                      )}
+                    </Menu.Item>
+
                     <hr className="my-2 border-gray-100 dark:border-gray-700" />
-                    
+
                     <Menu.Item>
                       {({ active }) => (
                         <button
                           onClick={logout}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-red-600 dark:text-red-400 ${
-                            active ? 'bg-red-50 dark:bg-red-900/20' : ''
-                          }`}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-red-600 dark:text-red-400 ${active ? 'bg-red-50 dark:bg-red-900/20' : ''
+                            }`}
                         >
                           <ArrowRightOnRectangleIcon className="h-5 w-5" />
                           Logout

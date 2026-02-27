@@ -14,6 +14,7 @@ import AttendancePage from './pages/admin/AttendancePage'
 import PlanningPage from './pages/admin/PlanningPage'
 import AdminPresencePage from './pages/admin/AdminPresencePage'
 import DevicesPage from './pages/admin/DevicesPage'
+import ProfilePage from './pages/common/ProfilePage'
 import RequestsPage from './pages/admin/RequestsPage'
 
 import EmployeeDashboard from './pages/employee/EmployeeDashboard'
@@ -31,10 +32,10 @@ function App() {
     const handleContextMenu = (e) => {
       e.preventDefault();
     };
-    
+
     // ✅ Fix: use globalThis instead of window where possible, though window is standard in React DOM
     globalThis.addEventListener('contextmenu', handleContextMenu);
-    
+
     return () => {
       globalThis.removeEventListener('contextmenu', handleContextMenu);
     };
@@ -66,8 +67,9 @@ function App() {
         <Route path="wassalni" element={<WassalniPage />} />
         <Route path="presence" element={<AdminPresencePage />} />
         <Route path="devices" element={
-           user?.role === 'admin' ? <DevicesPage /> : <Navigate to="/admin/dashboard" />
+          user?.role === 'admin' ? <DevicesPage /> : <Navigate to="/admin/dashboard" />
         } />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
 
       <Route path="/employee" element={
@@ -80,6 +82,7 @@ function App() {
         <Route path="attendance" element={<MyAttendancePage />} />
         <Route path="planning" element={<MyPlanningPage />} />
         <Route path="presence" element={<PresenceSheetPage />} />
+        <Route path="profile" element={<ProfilePage />} />
       </Route>
 
       <Route path="/" element={

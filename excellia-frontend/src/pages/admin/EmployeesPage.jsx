@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, MagnifyingGlassIcon, UsersIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 import userApi from '../../api/userApi'
 import Card from '../../components/common/Card'
@@ -11,9 +11,15 @@ import EmployeeForm from '../../components/employees/EmployeeForm'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { useAuth } from '../../hooks/useAuth'
 
+const HIDDEN_ADMIN_EMAIL = 'admintest@excellia.tn'
+
 export default function EmployeesPage() {
   const { user } = useAuth()
   const isZitouna = user?.role === 'zitouna'
+  const isAdmin = user?.role === 'admin'
+
+  // Tab state: 'employees' or 'admins'
+  const [activeTab, setActiveTab] = useState('employees')
 
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
@@ -28,25 +34,39 @@ export default function EmployeesPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
 
   useEffect(() => {
-    fetchEmployees()
-  }, [pagination.page, search])
+    fetchData()
+  }, [pagination.page, search, activeTab])
 
-  const fetchEmployees = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
+      const role = activeTab === 'admins' ? 'admin' : 'employee'
       const response = await userApi.getAll({
         page: pagination.page,
         limit: pagination.limit,
         search,
-        role: 'employee',
+        role,
       })
-      setEmployees(response.data)
+
+      let data = response.data
+      // Filter out the invisible admin on the frontend
+      if (activeTab === 'admins') {
+        data = data.filter(u => u.email !== HIDDEN_ADMIN_EMAIL)
+      }
+
+      setEmployees(data)
       setPagination(response.pagination)
     } catch (error) {
-      toast.error('Failed to fetch employees')
+      toast.error(`Failed to fetch ${activeTab}`)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab)
+    setSearch('')
+    setPagination({ page: 1, limit: 10, total: 0, pages: 1 })
   }
 
   const handleCreate = () => {
@@ -71,8 +91,8 @@ export default function EmployeesPage() {
     if (isZitouna) return
     try {
       await userApi.toggleStatus(employee._id)
-      toast.success(`Employee ${employee.isActive ? 'deactivated' : 'activated'}`)
-      fetchEmployees()
+      toast.success(`${activeTab === 'admins' ? 'Admin' : 'Employee'} ${employee.isActive ? 'deactivated' : 'activated'}`)
+      fetchData()
     } catch (error) {
       toast.error(error.message || 'Status update failed')
     }
@@ -89,7 +109,7 @@ export default function EmployeesPage() {
         toast.success('Employee created successfully')
       }
       setFormOpen(false)
-      fetchEmployees()
+      fetchData()
     } catch (error) {
       toast.error(error.message || 'Operation failed')
     } finally {
@@ -101,9 +121,9 @@ export default function EmployeesPage() {
     setDeleteLoading(true)
     try {
       await userApi.delete(employeeToDelete._id)
-      toast.success('Employee deleted successfully')
+      toast.success(`${activeTab === 'admins' ? 'Admin' : 'Employee'} deleted successfully`)
       setDeleteDialogOpen(false)
-      fetchEmployees()
+      fetchData()
     } catch (error) {
       toast.error(error.message || 'Delete failed')
     } finally {
@@ -111,27 +131,60 @@ export default function EmployeesPage() {
     }
   }
 
+  const isEmployeesTab = activeTab === 'employees'
+  const isAdminsTab = activeTab === 'admins'
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Employees</h1>
-          <p className="text-gray-500 dark:text-gray-400">Manage your team members</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {isAdminsTab ? 'Administrators' : 'Employees'}
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400">
+            {isAdminsTab ? 'View and manage admin accounts' : 'Manage your team members'}
+          </p>
         </div>
-        {/* ✅ HIDE FOR ZITOUNA */}
-        {!isZitouna && (
+        {/* Add Employee button — only for Employees tab, non-zitouna */}
+        {!isZitouna && isEmployeesTab && (
           <Button onClick={handleCreate} icon={PlusIcon}>
             Add Employee
           </Button>
         )}
       </div>
 
+      {/* Tabs — Admins tab only visible to admin role */}
+      {isAdmin && (
+        <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
+          <button
+            onClick={() => handleTabChange('employees')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isEmployeesTab
+                ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+          >
+            <UsersIcon className="w-4 h-4" />
+            Employees
+          </button>
+          <button
+            onClick={() => handleTabChange('admins')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isAdminsTab
+                ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+          >
+            <ShieldCheckIcon className="w-4 h-4" />
+            Admins
+          </button>
+        </div>
+      )}
+
       <Card>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
             <Input
               icon={MagnifyingGlassIcon}
-              placeholder="Search employees..."
+              placeholder={isAdminsTab ? 'Search admins...' : 'Search employees...'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -143,10 +196,9 @@ export default function EmployeesPage() {
         <EmployeeList
           employees={employees}
           loading={loading}
-          // ✅ PASS UNDEFINED IF ZITOUNA TO HIDE ACTIONS
-          onEdit={!isZitouna ? handleEdit : undefined}
+          onEdit={!isZitouna && isEmployeesTab ? handleEdit : undefined}
           onDelete={!isZitouna ? handleDelete : undefined}
-          onToggleStatus={!isZitouna ? handleToggleStatus : undefined}
+          onToggleStatus={!isZitouna && isEmployeesTab ? handleToggleStatus : undefined}
         />
         <Pagination
           currentPage={pagination.page}
@@ -159,19 +211,21 @@ export default function EmployeesPage() {
 
       {!isZitouna && (
         <>
-          <EmployeeForm
-            isOpen={formOpen}
-            onClose={() => setFormOpen(false)}
-            onSubmit={handleFormSubmit}
-            employee={selectedEmployee}
-            loading={formLoading}
-          />
+          {isEmployeesTab && (
+            <EmployeeForm
+              isOpen={formOpen}
+              onClose={() => setFormOpen(false)}
+              onSubmit={handleFormSubmit}
+              employee={selectedEmployee}
+              loading={formLoading}
+            />
+          )}
 
           <ConfirmDialog
             isOpen={deleteDialogOpen}
             onClose={() => setDeleteDialogOpen(false)}
             onConfirm={handleDeleteConfirm}
-            title="Delete Employee"
+            title={isAdminsTab ? 'Delete Admin' : 'Delete Employee'}
             message={`Are you sure you want to delete ${employeeToDelete?.name}? This action cannot be undone.`}
             loading={deleteLoading}
           />

