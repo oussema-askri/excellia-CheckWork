@@ -152,11 +152,11 @@ export default function AdminPresencePage() {
 
       const emp = selectedEmployee
       const filename = emp
-        ? `Feuille_de_presence_${emp.employeeId}_${year}-${String(month).padStart(2, '0')}.xlsx`
-        : `Feuille_de_presence_${year}-${String(month).padStart(2, '0')}.xlsx`
+        ? `Presence_Sheet_${emp.employeeId}_${year}-${String(month).padStart(2, '0')}.xlsx`
+        : `Presence_Sheet_${year}-${String(month).padStart(2, '0')}.xlsx`
 
       downloadBlob(blob, filename)
-      toast.success('Feuille generated and downloaded')
+      toast.success('Sheet generated and downloaded')
       await fetchRecords()
     } catch (e) {
       toast.error(e?.message || 'Generation failed')
@@ -169,7 +169,7 @@ export default function AdminPresencePage() {
     try {
       setDownloadLoadingId(rec._id)
       const blob = await presenceApi.adminDownloadRecordById(rec._id)
-      downloadBlob(blob, rec.fileName || 'Feuille_de_presence.xlsx')
+      downloadBlob(blob, rec.fileName || 'Presence_Sheet.xlsx')
     } catch (e) {
       toast.error(e?.message || 'Download failed')
     } finally {
@@ -184,7 +184,7 @@ export default function AdminPresencePage() {
     try {
       setRegenLoadingUserId(userId)
       const blob = await presenceApi.adminGenerateAndDownloadForUser({ userId, year, month })
-      downloadBlob(blob, rec.fileName || 'Feuille_de_presence.xlsx')
+      downloadBlob(blob, rec.fileName || 'Presence_Sheet.xlsx')
       toast.success('Regenerated & downloaded')
       await fetchRecords()
     } catch (e) {
@@ -215,7 +215,7 @@ export default function AdminPresencePage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Feuille de présence (Admin)
+          Presence Sheet (Admin)
         </h1>
         <p className="text-gray-500 dark:text-gray-400">
           Select month + department + employee to generate. Generated sheets are saved and listed below.

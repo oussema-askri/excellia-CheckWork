@@ -21,15 +21,15 @@ export default function PresenceSheetPage() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `Feuille_de_presence_${year}-${String(month).padStart(2, '0')}.xlsx`
+      a.download = `Presence_Sheet_${year}-${String(month).padStart(2, '0')}.xlsx`
       document.body.appendChild(a)
       a.click()
       a.remove()
       window.URL.revokeObjectURL(url)
 
-      toast.success('Feuille générée avec succès')
+      toast.success('Sheet generated successfully')
     } catch (err) {
-      toast.error(err?.message || 'Erreur lors de la génération')
+      toast.error(err?.message || 'Error while generating the sheet')
     } finally {
       setDownloading(false)
     }
@@ -38,9 +38,9 @@ export default function PresenceSheetPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Feuille de présence</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Presence Sheet</h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Générer automatiquement la feuille mensuelle (.xlsx) à partir des pointages (check-in/out) et du planning.
+          Automatically generate the monthly sheet (.xlsx) from attendance (check-in/out) and planning.
         </p>
       </div>
 
@@ -48,7 +48,7 @@ export default function PresenceSheetPage() {
         <div className="flex flex-col sm:flex-row gap-4 items-end">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              Mois
+              Month
             </label>
             <input
               type="month"
@@ -59,7 +59,7 @@ export default function PresenceSheetPage() {
           </div>
 
           <Button onClick={handleDownload} loading={downloading}>
-            Télécharger (.xlsx)
+            Download (.xlsx)
           </Button>
         </div>
       </Card>

@@ -32,7 +32,7 @@ export default function PresenceScreen() {
     try {
       const arrayBuffer = await presenceApi.downloadMy({ year: parsed.y, month: parsed.m });
       const base64 = encode(arrayBuffer);
-      const fileName = `Feuille_${user?.employeeId || 'EMP'}_${parsed.y}-${String(parsed.m).padStart(2, '0')}.xlsx`;
+      const fileName = `Presence_Sheet_${user?.employeeId || 'EMP'}_${parsed.y}-${String(parsed.m).padStart(2, '0')}.xlsx`;
 
       if (Platform.OS === 'android' && FileSystem.StorageAccessFramework) {
         const SAF = FileSystem.StorageAccessFramework;
@@ -64,7 +64,7 @@ export default function PresenceScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.content}>
-        <Text style={[typography.header, { marginBottom: spacing.xs }]}>Feuille de présence</Text>
+        <Text style={[typography.header, { marginBottom: spacing.xs }]}>Presence Sheet</Text>
         <Text style={[typography.caption, { marginBottom: spacing.xl }]}>Generate & download your monthly attendance sheet.</Text>
 
         <View style={styles.card}>

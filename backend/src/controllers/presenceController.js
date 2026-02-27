@@ -37,7 +37,7 @@ const downloadMyPresenceSheet = async (req, res, next) => {
       month
     });
 
-    const filename = `Feuille_de_presence_${req.user.employeeId}_${year}-${String(month).padStart(2, '0')}.xlsx`;
+    const filename = `Presence_Sheet_${req.user.employeeId}_${year}-${String(month).padStart(2, '0')}.xlsx`;
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

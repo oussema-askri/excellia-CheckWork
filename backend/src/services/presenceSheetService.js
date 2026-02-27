@@ -4,10 +4,8 @@ const XlsxPopulate = require('xlsx-populate');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
-require('dayjs/locale/fr');
 dayjs.extend(utc);
 dayjs.extend(timezone);
-dayjs.locale('fr');
 
 // Tunisia is always UTC+1 (no DST)
 const TZ = 'Africa/Tunis';
@@ -40,17 +38,17 @@ const TEMPLATE_PATHS = {
 /** Weekday tasks per role */
 const WEEKDAY_TASKS = {
   dom:
-    'Réception et analyse des tickets entrants, puis attribution des tickets aux groupes de techniciens et aux techniciens spécifiques',
+    'Receive and analyze incoming tickets, then assign tickets to technician groups and specific technicians',
   consultant:
-    'Assurer les tâches quotidiennes de fin de journée et la supervision de système monétique et des sauvegardes, Traitement des tickets',
+    'Perform daily end-of-day tasks and supervise the card system and backups, handle support tickets',
   monetique:
-    'traitement des procedures techniques, Observation Exploitation monétique, Resolutions des tickets',
+    'Process technical procedures, monitor card system operations, resolve support tickets',
 };
 
 /** Weekend tasks per role (if needed – falls back to weekday task for now) */
 const WEEKEND_TASKS = {
   dom: WEEKDAY_TASKS.dom,
-  consultant: 'Monitoring Appdynamics/Monétique/Elasticsearch',
+  consultant: 'Monitoring AppDynamics/Card System/Elasticsearch',
   monetique: WEEKDAY_TASKS.monetique,
 };
 
@@ -235,7 +233,7 @@ function fillRow(
   const dateObj = dayjs(`${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`);
   const dayName = capitalizeFirst(dateObj.format('dddd'));
   const isWeekend = [0, 6].includes(dateObj.day());
-  let dateLabel = `${String(dayNum).padStart(2, '0')} du mois`;
+  let dateLabel = `${String(dayNum).padStart(2, '0')} of the month`;
   if (isWeekend) dateLabel += ` (${dayName})`;
   sheet.cell(r, dateCol).value(dateLabel);
 
@@ -303,7 +301,7 @@ async function generateAndStorePresenceSheet({ user, year, month, generatedBy })
   const buffer = await generatePresenceWorkbookBuffer({ user, year, month });
   const folder = `uploads/presence/${year}-${String(month).padStart(2, '0')}`;
   await fs.mkdir(folder, { recursive: true });
-  const fileName = `Feuille_de_presence_${user.employeeId}_${year}-${String(month).padStart(2, '0')}.xlsx`;
+  const fileName = `Presence_Sheet_${user.employeeId}_${year}-${String(month).padStart(2, '0')}.xlsx`;
   const filePath = `${folder}/${fileName}`;
   await fs.writeFile(filePath, buffer);
 

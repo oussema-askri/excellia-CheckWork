@@ -17,7 +17,7 @@ const adminLinks = [
   { name: 'Requests', href: '/admin/requests', icon: InboxStackIcon }, // ✅ NEW
   { name: 'Attendance', href: '/admin/attendance', icon: ClockIcon },
   { name: 'Planning', href: '/admin/planning', icon: CalendarDaysIcon },
-  { name: 'Feuille de présence', href: '/admin/presence', icon: CalendarDaysIcon },
+  { name: 'Presence Sheet', href: '/admin/presence', icon: CalendarDaysIcon },
   { name: 'Devices', href: '/admin/devices', icon: DevicePhoneMobileIcon },
   { name: 'Wassalni', href: '/admin/wassalni', icon: TruckIcon },
 ]
@@ -27,14 +27,14 @@ const zitounaLinks = [
   { name: 'Employees', href: '/admin/employees', icon: UsersIcon },
   { name: 'Attendance', href: '/admin/attendance', icon: ClockIcon },
   { name: 'Planning', href: '/admin/planning', icon: CalendarDaysIcon },
-  { name: 'Feuille de présence', href: '/admin/presence', icon: CalendarDaysIcon },
+  { name: 'Presence Sheet', href: '/admin/presence', icon: CalendarDaysIcon },
 ]
 
 const employeeLinks = [
   { name: 'Dashboard', href: '/employee/dashboard', icon: HomeIcon },
   { name: 'My Attendance', href: '/employee/attendance', icon: ClockIcon },
   { name: 'My Planning', href: '/employee/planning', icon: CalendarDaysIcon },
-  { name: 'Feuille de présence', href: '/employee/presence', icon: CalendarDaysIcon },
+  { name: 'Presence Sheet', href: '/employee/presence', icon: CalendarDaysIcon },
 ]
 
 export default function Sidebar({ isOpen, onClose, role = 'employee', isCollapsed, toggleCollapse }) {
