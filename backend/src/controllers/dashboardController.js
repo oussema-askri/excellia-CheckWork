@@ -93,7 +93,7 @@ const getStats = async (req, res, next) => {
 const getTodaySummary = async (req, res, next) => {
   try {
     const summary = await AttendanceService.getTodaySummary();
-    
+
     ApiResponse.success(res, { summary });
   } catch (error) {
     next(error);
@@ -144,7 +144,7 @@ const getWeeklySummary = async (req, res, next) => {
     while (currentDate.isBefore(end) || currentDate.isSame(end, 'day')) {
       const dateStr = currentDate.format('YYYY-MM-DD');
       const dayStats = dailyStats.find(d => d._id === dateStr);
-      
+
       const dayData = {
         date: dateStr,
         day: currentDate.format('ddd'),
@@ -181,7 +181,7 @@ const getWeeklySummary = async (req, res, next) => {
 const getMonthlySummary = async (req, res, next) => {
   try {
     const { year, month } = req.query;
-    
+
     const targetYear = parseInt(year) || dayjs().year();
     const targetMonth = parseInt(month) || dayjs().month() + 1;
 
@@ -273,9 +273,73 @@ const getMonthlySummary = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get attendance matrix (employees × days)
+ * @route   GET /api/dashboard/attendance-matrix
+ * @access  Private/Admin
+ */
+const getAttendanceMatrix = async (req, res, next) => {
+  try {
+    const { year, month } = req.query;
+    const targetYear = parseInt(year) || dayjs().year();
+    const targetMonth = parseInt(month) || dayjs().month() + 1;
+
+    const startDate = dayjs().year(targetYear).month(targetMonth - 1).startOf('month').toDate();
+    const endDate = dayjs().year(targetYear).month(targetMonth - 1).endOf('month').toDate();
+    const daysInMonth = dayjs().year(targetYear).month(targetMonth - 1).daysInMonth();
+
+    // Fetch active employees (only role=employee)
+    const employees = await User.find({ role: 'employee', isActive: true })
+      .select('name employeeId department position')
+      .sort({ name: 1 })
+      .lean();
+
+    // Fetch all attendance records for this month
+    const attendances = await Attendance.find({
+      date: { $gte: startDate, $lte: endDate }
+    }).select('userId date status').lean();
+
+    // Build a lookup: { [userId]: { [dayNumber]: status } }
+    const records = {};
+    attendances.forEach(a => {
+      const uid = a.userId.toString();
+      const day = dayjs(a.date).date();
+      if (!records[uid]) records[uid] = {};
+      records[uid][day] = a.status;
+    });
+
+    // Today's snapshot counts
+    const { start: todayStart, end: todayEnd } = getDateBounds(new Date());
+    const todayAttendance = await Attendance.aggregate([
+      { $match: { date: { $gte: todayStart, $lte: todayEnd } } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+
+    const todayStats = { present: 0, absent: 0, late: 0, onLeave: 0 };
+    todayAttendance.forEach(stat => {
+      if (stat._id === 'present') todayStats.present = stat.count;
+      else if (stat._id === 'absent') todayStats.absent = stat.count;
+      else if (stat._id === 'late') todayStats.late = stat.count;
+      else if (stat._id === 'on-leave') todayStats.onLeave = stat.count;
+    });
+
+    ApiResponse.success(res, {
+      month: `${targetYear}-${targetMonth.toString().padStart(2, '0')}`,
+      daysInMonth,
+      employees,
+      records,
+      today: todayStats,
+      totalActive: employees.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getStats,
   getTodaySummary,
   getWeeklySummary,
-  getMonthlySummary
+  getMonthlySummary,
+  getAttendanceMatrix
 };

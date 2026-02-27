@@ -20,6 +20,11 @@ export const dashboardApi = {
     const response = await axios.get('/dashboard/monthly', { params })
     return response
   },
+
+  getAttendanceMatrix: async (params = {}) => {
+    const response = await axios.get('/dashboard/attendance-matrix', { params })
+    return response
+  },
 }
 
 export default dashboardApi

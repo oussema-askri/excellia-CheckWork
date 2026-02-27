@@ -5,7 +5,8 @@ const {
   getStats,
   getTodaySummary,
   getWeeklySummary,
-  getMonthlySummary
+  getMonthlySummary,
+  getAttendanceMatrix
 } = require('../controllers/dashboardController');
 
 const { protect } = require('../middleware/auth');
@@ -19,5 +20,6 @@ router.get('/stats', getStats);
 router.get('/today', getTodaySummary);
 router.get('/weekly', getWeeklySummary);
 router.get('/monthly', getMonthlySummary);
+router.get('/attendance-matrix', getAttendanceMatrix);
 
 module.exports = router;
