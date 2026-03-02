@@ -30,6 +30,20 @@ class AttendanceService {
     const today = new Date();
     const { start, end } = getDateBounds(today);
 
+    const startOfYesterday = dayjs().subtract(1, 'day').startOf('day').toDate();
+    const endOfYesterday = dayjs().subtract(1, 'day').endOf('day').toDate();
+
+    const yesterdayActive = await Attendance.findOne({
+      userId,
+      date: { $gte: startOfYesterday, $lte: endOfYesterday },
+      checkIn: { $ne: null },
+      checkOut: null
+    });
+
+    if (yesterdayActive) {
+      throw ApiError.badRequest('You have an active shift from yesterday. Please check out first.');
+    }
+
     let attendance = await Attendance.findOne({ userId, date: { $gte: start, $lte: end } });
 
     if (attendance && (attendance.status === ATTENDANCE_STATUS.ABSENT || attendance.status === ATTENDANCE_STATUS.PENDING_ABSENCE)) {
@@ -65,7 +79,23 @@ class AttendanceService {
   static async checkOut(userId, location = null, notes = '', transportMethod = 'none') {
     const today = new Date();
     const { start, end } = getDateBounds(today);
-    const attendance = await Attendance.findOne({ userId, date: { $gte: start, $lte: end } });
+    let attendance = await Attendance.findOne({ userId, date: { $gte: start, $lte: end } });
+
+    // If we can't find a check-in for today, look for an unclosed shift from yesterday
+    if (!attendance || !attendance.checkIn || attendance.checkOut) {
+      const startOfYesterday = dayjs().subtract(1, 'day').startOf('day').toDate();
+      const endOfYesterday = dayjs().subtract(1, 'day').endOf('day').toDate();
+      const yesterdayActive = await Attendance.findOne({
+        userId,
+        date: { $gte: startOfYesterday, $lte: endOfYesterday },
+        checkIn: { $ne: null },
+        checkOut: null
+      });
+
+      if (yesterdayActive) {
+        attendance = yesterdayActive;
+      }
+    }
 
     if (!attendance) throw ApiError.badRequest('No check-in found');
     if (attendance.status === ATTENDANCE_STATUS.ABSENT || attendance.status === ATTENDANCE_STATUS.PENDING_ABSENCE) throw ApiError.badRequest('Marked as absent.');
@@ -86,7 +116,7 @@ class AttendanceService {
     const checkOutTime = dayjs(attendance.checkOut);
     const diffHours = checkOutTime.diff(checkInTime, 'hour', true);
     attendance.workHours = Math.max(0, parseFloat(diffHours.toFixed(2)));
-    
+
     if (attendance.workHours > 8) {
       attendance.overtimeHours = parseFloat((attendance.workHours - 8).toFixed(2));
     }
@@ -106,7 +136,7 @@ class AttendanceService {
     attendance.status = ATTENDANCE_STATUS.PENDING_ABSENCE;
     attendance.checkIn = null;
     attendance.checkOut = null;
-    
+
     attendance.notes = typeof data === 'string' ? data : (data.notes || '');
     attendance.absenceType = data.type || '';
     attendance.absenceReason = data.reason || '';

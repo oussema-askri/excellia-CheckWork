@@ -6,12 +6,12 @@ const attendanceSchema = new mongoose.Schema({
   date: { type: Date, required: true },
   checkIn: { type: Date, default: null },
   checkOut: { type: Date, default: null },
-  status: { 
-    type: String, 
-    enum: ['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence'], 
-    default: 'present' 
+  status: {
+    type: String,
+    enum: ['present', 'absent', 'late', 'half-day', 'on-leave', 'pending-absence'],
+    default: 'present'
   },
-  
+
   transportMethodIn: { type: String, enum: ['wassalni', 'personal', 'none'], default: 'none' },
   transportMethodOut: { type: String, enum: ['wassalni', 'personal', 'none'], default: 'none' },
   transportEvents: { type: [String], default: [] },
@@ -33,26 +33,42 @@ attendanceSchema.index({ status: 1 });
 
 // ❌ REMOVED pre('save') hook entirely to avoid "next" issues.
 
-attendanceSchema.virtual('formattedDate').get(function() {
+attendanceSchema.virtual('formattedDate').get(function () {
   return dayjs(this.date).format('YYYY-MM-DD');
 });
 
-attendanceSchema.virtual('formattedCheckIn').get(function() {
+attendanceSchema.virtual('formattedCheckIn').get(function () {
   return this.checkIn ? dayjs(this.checkIn).format('HH:mm:ss') : null;
 });
 
-attendanceSchema.virtual('formattedCheckOut').get(function() {
+attendanceSchema.virtual('formattedCheckOut').get(function () {
   return this.checkOut ? dayjs(this.checkOut).format('HH:mm:ss') : null;
 });
 
-attendanceSchema.statics.getTodayAttendance = async function(userId) {
+attendanceSchema.statics.getTodayAttendance = async function (userId) {
+  // First, look for an active, unclosed shift from yesterday
+  const startOfYesterday = dayjs().subtract(1, 'day').startOf('day').toDate();
+  const endOfYesterday = dayjs().subtract(1, 'day').endOf('day').toDate();
+
+  const yesterdayActive = await this.findOne({
+    userId,
+    date: { $gte: startOfYesterday, $lte: endOfYesterday },
+    checkIn: { $ne: null },
+    checkOut: null
+  }).populate('userId', 'name employeeId email');
+
+  if (yesterdayActive) {
+    return yesterdayActive;
+  }
+
+  // Fallback to today's record
   const startOfDay = dayjs().startOf('day').toDate();
   const endOfDay = dayjs().endOf('day').toDate();
   return this.findOne({ userId, date: { $gte: startOfDay, $lte: endOfDay } })
     .populate('userId', 'name employeeId email');
 };
 
-attendanceSchema.statics.getByDateRange = async function(userId, startDate, endDate) {
+attendanceSchema.statics.getByDateRange = async function (userId, startDate, endDate) {
   return this.find({
     userId,
     date: { $gte: dayjs(startDate).startOf('day').toDate(), $lte: dayjs(endDate).endOf('day').toDate() }
