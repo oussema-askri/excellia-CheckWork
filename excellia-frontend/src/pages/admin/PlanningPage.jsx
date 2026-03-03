@@ -247,8 +247,8 @@ export default function PlanningPage() {
                     department: prev.department === dept ? '' : dept
                   }))}
                   className={`px-3 py-1 text-xs rounded-full transition-colors ${filters.department === dept
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                     }`}
                 >
                   {dept}
@@ -337,13 +337,16 @@ export default function PlanningPage() {
                           return (
                             <td key={emp.id} className="px-1 py-1 text-center">
                               {record ? (
-                                <div className={`inline-flex flex-col items-center justify-center px-2 py-1 rounded w-full max-w-[90px] ${getShiftColor(record.shift)}`} title={`${record.shift} (${record.startTime}-${record.endTime})`}>
-                                  <span className="text-xs font-medium truncate w-full">{record.shift}</span>
-                                  {record.startTime && record.endTime && (
-                                    <span className="text-[10px] opacity-80 font-mono tracking-tighter leading-tight mt-0.5">
-                                      {record.startTime}-{record.endTime}
-                                    </span>
-                                  )}
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span
+                                    className={`inline-block px-2 py-1 rounded text-xs font-medium truncate max-w-[90px] ${getShiftColor(record.shift)}`}
+                                    title={record.shift}
+                                  >
+                                    {record.shift}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono tracking-tighter">
+                                    {record.startTime}-{record.endTime}
+                                  </span>
                                 </div>
                               ) : (
                                 <span className="text-gray-300 dark:text-gray-600">—</span>
