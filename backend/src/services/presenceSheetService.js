@@ -2,6 +2,8 @@ const path = require('path');
 const fs = require('fs/promises');
 const XlsxPopulate = require('xlsx-populate');
 const dayjs = require('dayjs');
+require('dayjs/locale/fr');
+dayjs.locale('fr');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
@@ -234,7 +236,7 @@ function fillRow(
   const dateObj = dayjs(`${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`);
   const dayName = capitalizeFirst(dateObj.format('dddd'));
   const isWeekend = [0, 6].includes(dateObj.day());
-  let dateLabel = `${String(dayNum).padStart(2, '0')} of the month`;
+  let dateLabel = `${String(dayNum).padStart(2, '0')} du mois`;
   if (isWeekend) dateLabel += ` (${dayName})`;
   sheet.cell(r, dateCol).value(dateLabel);
 
