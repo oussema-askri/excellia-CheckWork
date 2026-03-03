@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { 
-  CloudArrowUpIcon, 
-  DocumentArrowDownIcon, 
-  CalendarDaysIcon, 
+import {
+  CloudArrowUpIcon,
+  DocumentArrowDownIcon,
+  CalendarDaysIcon,
   TableCellsIcon,
   MagnifyingGlassPlusIcon,
   MagnifyingGlassMinusIcon,
@@ -99,8 +99,8 @@ export default function PlanningPage() {
   const handleDownloadTemplate = async () => {
     try {
       const response = await planningApi.downloadTemplate()
-      const blob = new Blob([response], { 
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      const blob = new Blob([response], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -143,13 +143,13 @@ export default function PlanningPage() {
         })
       }
     })
-    
+
     // Filter by department if selected
     let employeesList = Array.from(employeeMap.values())
     if (filters.department) {
       employeesList = employeesList.filter(emp => emp.department === filters.department)
     }
-    
+
     employeesList.sort((a, b) => a.name.localeCompare(b.name))
 
     // Get unique dates
@@ -162,7 +162,11 @@ export default function PlanningPage() {
     dates.forEach(date => { matrix[date] = {} })
     planning.forEach(p => {
       const dateKey = dayjs(p.date).format('YYYY-MM-DD')
-      if (matrix[dateKey]) matrix[dateKey][p.employeeId] = p.shift
+      if (matrix[dateKey]) matrix[dateKey][p.employeeId] = {
+        shift: p.shift,
+        startTime: p.startTime,
+        endTime: p.endTime
+      }
     })
 
     return { dates, filteredEmployees: employeesList, matrix }
@@ -222,15 +226,15 @@ export default function PlanningPage() {
               placeholder={departments.length > 0 ? "All Departments" : "No departments found"}
             />
           </div>
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             onClick={() => setFilters(prev => ({ ...prev, department: '' }))}
             disabled={!filters.department}
           >
             Clear
           </Button>
         </div>
-        
+
         {departments.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Quick filter:</p>
@@ -238,15 +242,14 @@ export default function PlanningPage() {
               {departments.map(dept => (
                 <button
                   key={dept}
-                  onClick={() => setFilters(prev => ({ 
-                    ...prev, 
-                    department: prev.department === dept ? '' : dept 
+                  onClick={() => setFilters(prev => ({
+                    ...prev,
+                    department: prev.department === dept ? '' : dept
                   }))}
-                  className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                    filters.department === dept
+                  className={`px-3 py-1 text-xs rounded-full transition-colors ${filters.department === dept
                       ? 'bg-indigo-600 text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
+                    }`}
                 >
                   {dept}
                 </button>
@@ -266,7 +269,7 @@ export default function PlanningPage() {
               ({dates.length} days, {filteredEmployees.length} employees)
             </span>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Zoom: {zoomPercentage}%</span>
             <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -330,11 +333,18 @@ export default function PlanningPage() {
                           </div>
                         </td>
                         {filteredEmployees.map(emp => {
-                          const shift = matrix[date]?.[emp.id]
+                          const record = matrix[date]?.[emp.id]
                           return (
                             <td key={emp.id} className="px-1 py-1 text-center">
-                              {shift ? (
-                                <span className={`inline-block px-2 py-1 rounded text-xs font-medium truncate max-w-[80px] ${getShiftColor(shift)}`} title={shift}>{shift}</span>
+                              {record ? (
+                                <div className={`inline-flex flex-col items-center justify-center px-2 py-1 rounded w-full max-w-[90px] ${getShiftColor(record.shift)}`} title={`${record.shift} (${record.startTime}-${record.endTime})`}>
+                                  <span className="text-xs font-medium truncate w-full">{record.shift}</span>
+                                  {record.startTime && record.endTime && (
+                                    <span className="text-[10px] opacity-80 font-mono tracking-tighter leading-tight mt-0.5">
+                                      {record.startTime}-{record.endTime}
+                                    </span>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="text-gray-300 dark:text-gray-600">—</span>
                               )}
