@@ -48,7 +48,7 @@ const WEEKDAY_TASKS = {
 /** Weekend tasks per role (if needed – falls back to weekday task for now) */
 const WEEKEND_TASKS = {
   dom: WEEKDAY_TASKS.dom,
-  consultant: 'Monitoring AppDynamics/Card System/Elasticsearch',
+  consultant: 'Monitoring AppDynamics/Monétique/Elasticsearch',
   monetique: WEEKDAY_TASKS.monetique,
 };
 
@@ -83,9 +83,10 @@ function scanRowForHeaders(sheet, rowIndex, maxCol) {
     const val = sheet.cell(rowIndex, c).value();
     if (typeof val === 'string') {
       const trimmed = val.trim();
+      // Support both French and English for backward compatibility or transition
       if (trimmed === 'Date') dateCol = c;
-      if (trimmed === 'Tâches et livrables') tasksCol = c;
-      if (trimmed === 'Temps') timeCol = c;
+      if (trimmed === 'Tâches et livrables' || trimmed === 'Tasks and Deliverables') tasksCol = c;
+      if (trimmed === 'Temps' || trimmed === 'Time') timeCol = c;
     }
   }
 
@@ -137,8 +138,8 @@ function scanRowForSignature(sheet, rowIndex, maxCol) {
     const v = sheet.cell(rowIndex, c).value();
     if (typeof v === 'string') {
       const t = v.trim();
-      if (t === 'Prestataire') prestataireCol = c;
-      if (t === 'Responsable suivi de mission') hasResponsable = true;
+      if (t === 'Prestataire' || t === 'Service Provider') prestataireCol = c;
+      if (t === 'Responsable suivi de mission' || t === 'Mission Supervisor') hasResponsable = true;
     }
   }
   return { prestataireCol, hasResponsable };
@@ -270,11 +271,16 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
   const wb = await XlsxPopulate.fromFileAsync(templatePath);
   const sheet = wb.sheet(0);
 
-  await setLabelValueRight(sheet, 'Prestataire', user.name);
+  // Use bilingual checks for the labels, or try English first then French
+  let providerSet = await setLabelValueRight(sheet, 'Service Provider', user.name);
+  if (!providerSet) await setLabelValueRight(sheet, 'Prestataire', user.name);
+
   const period = capitalizeFirst(
     dayjs(`${year}-${String(month).padStart(2, '0')}-01`).format('MMMM YYYY')
   );
-  await setLabelValueRight(sheet, 'Période objet de la facturation', period);
+
+  let periodSet = await setLabelValueRight(sheet, 'Billing Period', period);
+  if (!periodSet) await setLabelValueRight(sheet, 'Période objet de la facturation', period);
   await setSignaturePrestataireBelow(sheet, user.name);
 
   const { headerRow, dateCol, tasksCol, timeCol, maxRow } = await findHeaders(sheet);
