@@ -133,41 +133,6 @@ async function setLabelValueRight(sheet, labelText, valueToSet) {
 }
 
 
-function scanRowForSignature(sheet, rowIndex, maxCol) {
-  let responsableEquipeCol = null;
-  let hasResponsable = false;
-
-  for (let c = 1; c <= maxCol; c++) {
-    const v = sheet.cell(rowIndex, c).value();
-    if (typeof v === 'string') {
-      const t = v.trim();
-      if (t === 'Prestataire' || t === 'Service Provider' || t === "Responsable d'équipe") {
-        // Overwrite the label to the new standard
-        sheet.cell(rowIndex, c).value("Responsable d'équipe");
-        responsableEquipeCol = c;
-      }
-      if (t === 'Responsable suivi de mission' || t === 'Mission Supervisor') hasResponsable = true;
-    }
-  }
-  return { responsableEquipeCol, hasResponsable };
-}
-
-async function setSignatureResponsableEquipeBelow(sheet) {
-  const used = sheet.usedRange();
-  const maxRow = used.endCell().rowNumber();
-  const maxCol = used.endCell().columnNumber();
-
-  for (let r = 1; r <= maxRow; r++) {
-    const { responsableEquipeCol, hasResponsable } = scanRowForSignature(sheet, r, maxCol);
-
-    if (responsableEquipeCol && hasResponsable) {
-      sheet.cell(r + 1, responsableEquipeCol).value('Aymen Selmi');
-      return true;
-    }
-  }
-  return false;
-}
-
 // ─── Data fetching ────────────────────────────────────────────────────────────
 
 async function buildMonthMaps(user, year, month) {
@@ -191,11 +156,17 @@ async function buildMonthMaps(user, year, month) {
   return { attendanceByDay, planningByDay, daysInMonth: dayjs(start).daysInMonth() };
 }
 
-// ─── Monthly summary ────────────────────────────────────────────────────────
+// ─── Monthly summary & fixed cells ──────────────────────────────────────────
 
 /**
- * Count worked and absent days for the month, then write the totals to
- * fixed cells C44 (congé / absences) and C45 (total jours travaillés).
+ * Count worked and absent days for the month, then write the totals and
+ * fixed labels/names to the bottom section of the sheet.
+ *
+ * Fixed cell layout:
+ *   B44 = "Congé"                       C44 = absent count
+ *   B45 = "Total jours travaillés"      C45 = worked count (checkIn + checkOut only)
+ *   B46 = "Responsable d'équipe"        C46 = "Responsable suivi de mission"
+ *   B47 = "Aymen Selmi"                 C47 = "Moez Dhehibi"
  */
 function writeMonthlySummary(sheet, { attendanceByDay, daysInMonth, year, month }) {
   let worked = 0;
@@ -213,15 +184,27 @@ function writeMonthlySummary(sheet, { attendanceByDay, daysInMonth, year, month 
 
     if (a.status === 'absent') {
       absent += 1;
-    } else {
+    } else if (a.checkIn && a.checkOut) {
+      // Only count as worked if the employee checked in AND checked out
       worked += 1;
     }
   }
 
-  // C44 → congé / absences count
-  sheet.cell(44, 3).value(absent);
-  // C45 → total jours travaillés
-  sheet.cell(45, 3).value(worked);
+  // Row 44 – Congé / absences
+  sheet.cell(44, 2).value('Congé');                           // B44
+  sheet.cell(44, 3).value(absent);                            // C44
+
+  // Row 45 – Total jours travaillés
+  sheet.cell(45, 2).value('Total jours travaillés');           // B45
+  sheet.cell(45, 3).value(worked);                            // C45
+
+  // Row 46 – Signature labels
+  sheet.cell(46, 2).value("Responsable d'équipe");             // B46
+  sheet.cell(46, 3).value('Responsable suivi de mission');     // C46
+
+  // Row 47 – Signature names
+  sheet.cell(47, 2).value('Aymen Selmi');                      // B47
+  sheet.cell(47, 3).value('Moez Dhehibi');                     // C47
 }
 
 // ─── Row filling ──────────────────────────────────────────────────────────────
@@ -278,9 +261,9 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
   const wb = await XlsxPopulate.fromFileAsync(templatePath);
   const sheet = wb.sheet(0);
 
-  // Use bilingual checks for the labels, or try English first then French
-  let providerSet = await setLabelValueRight(sheet, 'Service Provider', user.name);
-  if (!providerSet) await setLabelValueRight(sheet, 'Prestataire', user.name);
+  // A5 = "Prestataire" label, B5 = employee's name
+  sheet.cell(5, 1).value('Prestataire');                     // A5
+  sheet.cell(5, 2).value(user.name);                          // B5
 
   const period = capitalizeFirst(
     dayjs(`${year}-${String(month).padStart(2, '0')}-01`).format('MMMM YYYY')
@@ -288,7 +271,6 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
 
   let periodSet = await setLabelValueRight(sheet, 'Billing Period', period);
   if (!periodSet) await setLabelValueRight(sheet, 'Période objet de la facturation', period);
-  await setSignatureResponsableEquipeBelow(sheet);
 
   const { headerRow, dateCol, tasksCol, timeCol, maxRow } = await findHeaders(sheet);
   const { attendanceByDay, planningByDay, daysInMonth } = await buildMonthMaps(user, year, month);
