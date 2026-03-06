@@ -141,7 +141,7 @@ export default function Navbar({ onMenuClick }) {
                           className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors ${active ? 'bg-gray-100 dark:bg-gray-700' : ''
                             }`}
                         >
-                          <UserCircleIcon className="h-4.5 w-4.5 text-gray-400 dark:text-gray-500" />
+                          <UserCircleIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                           Dashboard
                         </Link>
                       )}
@@ -154,7 +154,7 @@ export default function Navbar({ onMenuClick }) {
                           className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-gray-700 dark:text-gray-300 transition-colors ${active ? 'bg-gray-100 dark:bg-gray-700' : ''
                             }`}
                         >
-                          <KeyIcon className="h-4.5 w-4.5 text-gray-400 dark:text-gray-500" />
+                          <KeyIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                           My Profile
                         </Link>
                       )}
@@ -169,7 +169,7 @@ export default function Navbar({ onMenuClick }) {
                           className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm w-full text-red-600 dark:text-red-400 transition-colors ${active ? 'bg-red-50 dark:bg-red-900/20' : ''
                             }`}
                         >
-                          <ArrowRightOnRectangleIcon className="h-4.5 w-4.5" />
+                          <ArrowRightOnRectangleIcon className="h-4 w-4" />
                           Logout
                         </button>
                       )}
