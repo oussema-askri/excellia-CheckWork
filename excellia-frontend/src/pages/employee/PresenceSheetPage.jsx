@@ -36,7 +36,7 @@ export default function PresenceSheetPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-page-enter">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Presence Sheet</h1>
         <p className="text-gray-500 dark:text-gray-400">

@@ -127,7 +127,7 @@ export default function RequestsPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-page-enter">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Absence Requests</h1>

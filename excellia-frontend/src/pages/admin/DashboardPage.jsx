@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/24/outline'
 import dayjs from 'dayjs'
 import dashboardApi from '../../api/dashboardApi'
+import { useAuth } from '../../hooks/useAuth'
 import Card from '../../components/common/Card'
 import Loading from '../../components/common/Loading'
 import Badge from '../../components/common/Badge'
@@ -22,7 +23,50 @@ const STATUS_CONFIG = {
   'pending-absence': { label: '?', color: 'bg-yellow-300', textColor: 'text-gray-700', title: 'Pending' },
 }
 
+const STAT_CARDS = [
+  {
+    key: 'present',
+    label: 'Present Today',
+    icon: CheckCircleIcon,
+    gradient: 'from-emerald-500 to-teal-600',
+    bgLight: 'bg-emerald-50 dark:bg-emerald-900/20',
+    iconColor: 'text-emerald-600 dark:text-emerald-400',
+  },
+  {
+    key: 'late',
+    label: 'Late Today',
+    icon: ExclamationTriangleIcon,
+    gradient: 'from-amber-400 to-orange-500',
+    bgLight: 'bg-amber-50 dark:bg-amber-900/20',
+    iconColor: 'text-amber-600 dark:text-amber-400',
+  },
+  {
+    key: 'absent',
+    label: 'Absent Today',
+    icon: XCircleIcon,
+    gradient: 'from-red-500 to-rose-600',
+    bgLight: 'bg-red-50 dark:bg-red-900/20',
+    iconColor: 'text-red-600 dark:text-red-400',
+  },
+  {
+    key: 'onLeave',
+    label: 'On Leave',
+    icon: CalendarDaysIcon,
+    gradient: 'from-blue-500 to-indigo-600',
+    bgLight: 'bg-blue-50 dark:bg-blue-900/20',
+    iconColor: 'text-blue-600 dark:text-blue-400',
+  },
+]
+
+function getGreeting() {
+  const hour = dayjs().hour()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export default function DashboardPage() {
+  const { user } = useAuth()
   const [matrixData, setMatrixData] = useState(null)
   const [monthlyStats, setMonthlyStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -72,18 +116,23 @@ export default function DashboardPage() {
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
   const isCurrentMonth = currentMonth.isSame(dayjs(), 'month')
   const todayDate = dayjs().date()
-
-  // Summary stats
   const stats = monthlyStats?.stats || {}
 
+  // Attendance rate
+  const attendanceRate = stats.total > 0
+    ? Math.round(((stats.present || 0) + (stats.late || 0)) / stats.total * 100)
+    : 0
+
   return (
-    <div className="space-y-6">
-      {/* Page Header with Month Navigation */}
+    <div className="space-y-6 animate-page-enter">
+      {/* Greeting & Month Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-          <p className="text-gray-500 dark:text-gray-400">
-            Attendance overview — {dayjs().format('dddd, MMMM D, YYYY')}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {getGreeting()}, {user?.name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
+            {dayjs().format('dddd, MMMM D, YYYY')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -93,7 +142,7 @@ export default function DashboardPage() {
           >
             <ChevronLeftIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
           </button>
-          <span className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-semibold text-gray-900 dark:text-white min-w-[160px] text-center shadow-sm">
+          <span className="px-4 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 font-semibold text-gray-900 dark:text-white min-w-[160px] text-center shadow-sm text-sm">
             {currentMonth.format('MMMM YYYY')}
           </span>
           <button
@@ -105,44 +154,24 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Today's Snapshot */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-3 shadow-sm">
-          <div className="p-2.5 rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
-            <CheckCircleIcon className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+      {/* Stat Cards with gradient accents */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-stagger">
+        {STAT_CARDS.map((card) => (
+          <div
+            key={card.key}
+            className="bg-white dark:bg-gray-800 border border-gray-200/80 dark:border-gray-700/80 rounded-xl p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-shadow duration-200 relative overflow-hidden group"
+          >
+            {/* Gradient accent bar */}
+            <div className={`absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r ${card.gradient}`} />
+            <div className={`p-2.5 rounded-xl ${card.bgLight} transition-transform duration-200 group-hover:scale-105`}>
+              <card.icon className={`w-6 h-6 ${card.iconColor}`} />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{today[card.key] || 0}</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{card.label}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{today.present || 0}</p>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Present Today</p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-3 shadow-sm">
-          <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-900/30">
-            <ExclamationTriangleIcon className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{today.late || 0}</p>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Late Today</p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-3 shadow-sm">
-          <div className="p-2.5 rounded-xl bg-red-100 dark:bg-red-900/30">
-            <XCircleIcon className="w-6 h-6 text-red-600 dark:text-red-400" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{today.absent || 0}</p>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Absent Today</p>
-          </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex items-center gap-3 shadow-sm">
-          <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/30">
-            <CalendarDaysIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{today.onLeave || 0}</p>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">On Leave</p>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Attendance Schedule Matrix */}
@@ -183,10 +212,10 @@ export default function DashboardPage() {
                     <th
                       key={day}
                       className={`px-0.5 py-2 text-center text-xs font-medium min-w-[32px] border-r border-gray-100 dark:border-gray-700/50 ${isToday
-                          ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                          : isWeekend
-                            ? 'bg-gray-100 dark:bg-gray-800'
-                            : ''
+                        ? 'bg-indigo-50 dark:bg-indigo-900/20'
+                        : isWeekend
+                          ? 'bg-gray-100 dark:bg-gray-800'
+                          : ''
                         }`}
                     >
                       <div className={`${isToday ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-gray-400 dark:text-gray-500'}`}>
@@ -275,21 +304,21 @@ export default function DashboardPage() {
           subtitle={currentMonth.format('MMMM YYYY')}
           className="dark:bg-gray-800 dark:border-gray-700"
         >
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">Total Records</span>
+              <span className="text-gray-600 dark:text-gray-400 text-sm">Total Records</span>
               <span className="font-semibold text-gray-900 dark:text-white">{stats.total || 0}</span>
             </div>
             <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">Present Days</span>
+              <span className="text-gray-600 dark:text-gray-400 text-sm">Present Days</span>
               <Badge variant="success">{stats.present || 0}</Badge>
             </div>
             <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">Late Days</span>
+              <span className="text-gray-600 dark:text-gray-400 text-sm">Late Days</span>
               <Badge variant="warning">{stats.late || 0}</Badge>
             </div>
             <div className="flex justify-between items-center py-3">
-              <span className="text-gray-600 dark:text-gray-400">Absent Days</span>
+              <span className="text-gray-600 dark:text-gray-400 text-sm">Absent Days</span>
               <Badge variant="danger">{stats.absent || 0}</Badge>
             </div>
           </div>
@@ -300,26 +329,45 @@ export default function DashboardPage() {
           subtitle="This month's performance"
           className="dark:bg-gray-800 dark:border-gray-700"
         >
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">Active Employees</span>
+          <div className="space-y-3">
+            {/* Circular attendance rate */}
+            <div className="flex items-center justify-center py-4">
+              <div className="relative w-28 h-28">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    className="text-gray-200 dark:text-gray-700"
+                    strokeWidth="3"
+                  />
+                  <path
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="currentColor"
+                    className="text-indigo-500 dark:text-indigo-400"
+                    strokeWidth="3"
+                    strokeDasharray={`${attendanceRate}, 100`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{attendanceRate}%</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center py-3 border-t border-gray-100 dark:border-gray-700">
+              <span className="text-gray-600 dark:text-gray-400 text-sm">Active Employees</span>
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">{matrixData?.totalActive || 0}</span>
             </div>
-            <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">On Leave (This Month)</span>
+            <div className="flex justify-between items-center py-3 border-t border-gray-100 dark:border-gray-700">
+              <span className="text-gray-600 dark:text-gray-400 text-sm">On Leave (This Month)</span>
               <span className="font-semibold text-blue-600 dark:text-blue-400">{stats.onLeave || 0}</span>
             </div>
-            <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-gray-600 dark:text-gray-400">Half Days</span>
+            <div className="flex justify-between items-center py-3 border-t border-gray-100 dark:border-gray-700">
+              <span className="text-gray-600 dark:text-gray-400 text-sm">Half Days</span>
               <span className="font-semibold text-orange-500">{stats.halfDay || 0}</span>
-            </div>
-            <div className="flex justify-between items-center py-3">
-              <span className="text-gray-600 dark:text-gray-400">Attendance Rate</span>
-              <span className="font-bold text-lg text-indigo-600 dark:text-indigo-400">
-                {stats.total > 0
-                  ? Math.round(((stats.present || 0) + (stats.late || 0)) / stats.total * 100)
-                  : 0}%
-              </span>
             </div>
           </div>
         </Card>

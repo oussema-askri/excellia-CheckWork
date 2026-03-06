@@ -22,12 +22,12 @@ export default function Modal({
     const handleEscape = (e) => {
       if (e.key === 'Escape') onClose()
     }
-    
+
     if (isOpen) {
       document.addEventListener('keydown', handleEscape)
       document.body.style.overflow = 'hidden'
     }
-    
+
     return () => {
       document.removeEventListener('keydown', handleEscape)
       document.body.style.overflow = 'unset'
@@ -37,7 +37,7 @@ export default function Modal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto animate-fade-in">
       <div
         className="fixed inset-0 bg-black/60 dark:bg-black/70 backdrop-blur-sm transition-opacity"
         onClick={onClose}
@@ -45,11 +45,11 @@ export default function Modal({
 
       <div className="flex min-h-full items-center justify-center p-4">
         <div
-          className={`relative w-full ${sizes[size]} bg-white dark:bg-gray-800 rounded-2xl shadow-2xl transform transition-all`}
+          className={`relative w-full ${sizes[size]} bg-white dark:bg-gray-800 rounded-2xl shadow-2xl transform transition-all animate-page-enter border border-gray-200/50 dark:border-gray-700/50`}
           onClick={(e) => e.stopPropagation()}
         >
           {(title || showClose) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700/50">
               {title && (
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h3>
               )}
@@ -67,7 +67,7 @@ export default function Modal({
           <div className="px-6 py-5">{children}</div>
 
           {footer && (
-            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50 rounded-b-2xl">
               {footer}
             </div>
           )}

@@ -110,7 +110,7 @@ export default function DevicesPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-page-enter">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Device Management</h1>
         <p className="text-gray-500 dark:text-gray-400">Manage mobile device bindings for employees</p>
