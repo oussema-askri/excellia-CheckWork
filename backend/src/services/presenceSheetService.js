@@ -40,11 +40,11 @@ const TEMPLATE_PATHS = {
 /** Weekday tasks per role */
 const WEEKDAY_TASKS = {
   dom:
-    'Receive and analyze incoming tickets, then assign tickets to technician groups and specific technicians',
+    'Réception et analyse des tickets entrants, Puis attribution des tickets aux groupes de techniciens et aux techniciens spécifiques',
   consultant:
-    'Perform daily end-of-day tasks and supervise the card system and backups, handle support tickets',
+    'Assurer les tâches quotidiennes de fin de journée et la supervision de système monétique et des sauvegardes Traitement des tickets T24 et GED',
   monetique:
-    'Process technical procedures, monitor card system operations, resolve support tickets',
+    'Traitement des procedures techniques, Observation Exploitation monétique, Resolutions des tickets',
 };
 
 /** Weekend tasks per role (if needed – falls back to weekday task for now) */
@@ -132,31 +132,36 @@ async function setLabelValueRight(sheet, labelText, valueToSet) {
   return false;
 }
 
+
 function scanRowForSignature(sheet, rowIndex, maxCol) {
-  let prestataireCol = null;
+  let responsableEquipeCol = null;
   let hasResponsable = false;
 
   for (let c = 1; c <= maxCol; c++) {
     const v = sheet.cell(rowIndex, c).value();
     if (typeof v === 'string') {
       const t = v.trim();
-      if (t === 'Prestataire' || t === 'Service Provider') prestataireCol = c;
+      if (t === 'Prestataire' || t === 'Service Provider' || t === "Responsable d'équipe") {
+        // Overwrite the label to the new standard
+        sheet.cell(rowIndex, c).value("Responsable d'équipe");
+        responsableEquipeCol = c;
+      }
       if (t === 'Responsable suivi de mission' || t === 'Mission Supervisor') hasResponsable = true;
     }
   }
-  return { prestataireCol, hasResponsable };
+  return { responsableEquipeCol, hasResponsable };
 }
 
-async function setSignaturePrestataireBelow(sheet, fullName) {
+async function setSignatureResponsableEquipeBelow(sheet) {
   const used = sheet.usedRange();
   const maxRow = used.endCell().rowNumber();
   const maxCol = used.endCell().columnNumber();
 
   for (let r = 1; r <= maxRow; r++) {
-    const { prestataireCol, hasResponsable } = scanRowForSignature(sheet, r, maxCol);
+    const { responsableEquipeCol, hasResponsable } = scanRowForSignature(sheet, r, maxCol);
 
-    if (prestataireCol && hasResponsable) {
-      sheet.cell(r + 1, prestataireCol).value(fullName);
+    if (responsableEquipeCol && hasResponsable) {
+      sheet.cell(r + 1, responsableEquipeCol).value('Aymen Selmi');
       return true;
     }
   }
@@ -283,7 +288,7 @@ async function generatePresenceWorkbookBuffer({ user, year, month }) {
 
   let periodSet = await setLabelValueRight(sheet, 'Billing Period', period);
   if (!periodSet) await setLabelValueRight(sheet, 'Période objet de la facturation', period);
-  await setSignaturePrestataireBelow(sheet, user.name);
+  await setSignatureResponsableEquipeBelow(sheet);
 
   const { headerRow, dateCol, tasksCol, timeCol, maxRow } = await findHeaders(sheet);
   const { attendanceByDay, planningByDay, daysInMonth } = await buildMonthMaps(user, year, month);
