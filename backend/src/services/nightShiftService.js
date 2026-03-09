@@ -33,16 +33,17 @@ class NightShiftService {
         ]);
         const totalNightShifts = totalAgg[0]?.total || 0;
 
-        // By department (LIVE from Attendance - actual night shifts worked)
+        // Actual night shifts (LIVE from Attendance - employees who checked in AND out)
         const attendanceMatch = {
             date: { $gte: start, $lte: end },
-            checkIn: { $ne: null }
+            checkIn: { $ne: null },
+            checkOut: { $ne: null }
         };
         if (employeeId) {
             attendanceMatch.userId = new mongoose.Types.ObjectId(employeeId);
         }
 
-        const byDepartment = await Attendance.aggregate([
+        const actualByEmployee = await Attendance.aggregate([
             { $match: attendanceMatch },
             // Lookup matching Planning record for same user + same day with night shift
             {
@@ -75,8 +76,14 @@ class NightShiftService {
             { $match: { 'nightPlan.0': { $exists: true } } },
             { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
             { $unwind: '$user' },
-            { $group: { _id: '$user.department', count: { $sum: 1 } } },
-            { $sort: { count: -1 } }
+            {
+                $group: {
+                    _id: { id: '$user.employeeId', name: '$user.name', dept: '$user.department' },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } },
+            { $limit: 20 }
         ]);
 
         // By employee - expected/scheduled (from Planning)
@@ -106,7 +113,7 @@ class NightShiftService {
             { $sort: { _id: 1 } }
         ]);
 
-        return { totalNightShifts, byDepartment, byEmployee, byShift };
+        return { totalNightShifts, actualByEmployee, byEmployee, byShift };
     }
 
     /**

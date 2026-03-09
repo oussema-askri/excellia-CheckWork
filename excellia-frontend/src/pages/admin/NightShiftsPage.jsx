@@ -157,17 +157,20 @@ export default function NightShiftsPage() {
                     )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card title="Actual Attendance by Department" className="dark:bg-gray-800 dark:border-gray-700 h-full">
+                        <Card title="Actual Night Shifts" className="dark:bg-gray-800 dark:border-gray-700 h-full">
                             <div className="space-y-3 mt-2">
-                                {stats?.byDepartment?.map((dept, idx) => (
+                                {stats?.actualByEmployee?.map((emp, idx) => (
                                     <div key={idx} className="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-3 last:border-0">
-                                        <span className="font-semibold text-gray-700 dark:text-gray-300">{dept._id || 'Unknown'}</span>
-                                        <span className="font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 px-3 py-1 rounded-full text-sm">
-                                            {dept.count}
+                                        <div>
+                                            <p className="font-bold text-gray-900 dark:text-white">{emp._id.name}</p>
+                                            <p className="text-xs text-gray-500">{emp._id.dept}</p>
+                                        </div>
+                                        <span className="font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full text-sm">
+                                            {emp.count}
                                         </span>
                                     </div>
                                 ))}
-                                {(!stats?.byDepartment?.length) && <p className="text-gray-500 italic py-4 text-center">No data available</p>}
+                                {(!stats?.actualByEmployee?.length) && <p className="text-gray-500 italic py-4 text-center">No data available</p>}
                             </div>
                         </Card>
 
