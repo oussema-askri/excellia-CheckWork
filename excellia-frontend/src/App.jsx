@@ -7,6 +7,7 @@ import EmployeeLayout from './components/layout/EmployeeLayout'
 import LoginPage from './pages/auth/LoginPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import WassalniPage from './pages/admin/WassalniPage'
+import NightShiftsPage from './pages/admin/NightShiftsPage'
 
 import DashboardPage from './pages/admin/DashboardPage'
 import EmployeesPage from './pages/admin/EmployeesPage'
@@ -65,6 +66,7 @@ function App() {
         <Route path="attendance" element={<AttendancePage />} />
         <Route path="planning" element={<PlanningPage />} />
         <Route path="wassalni" element={<WassalniPage />} />
+        <Route path="night-shifts" element={<NightShiftsPage />} />
         <Route path="presence" element={<AdminPresencePage />} />
         <Route path="devices" element={
           user?.role === 'admin' ? <DevicesPage /> : <Navigate to="/admin/dashboard" />

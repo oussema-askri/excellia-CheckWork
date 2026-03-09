@@ -9,7 +9,7 @@ import {
   InboxStackIcon,
   UserCircleIcon
 } from '@heroicons/react/24/outline'
-import { TruckIcon } from '@heroicons/react/24/outline'
+import { TruckIcon, MoonIcon } from '@heroicons/react/24/outline'
 
 const adminLinks = [
   {
@@ -30,6 +30,7 @@ const adminLinks = [
     section: 'System', items: [
       { name: 'Devices', href: '/admin/devices', icon: DevicePhoneMobileIcon },
       { name: 'Wassalni', href: '/admin/wassalni', icon: TruckIcon },
+      { name: 'Night Shifts', href: '/admin/night-shifts', icon: MoonIcon },
     ]
   },
   {

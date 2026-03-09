@@ -10,7 +10,9 @@ const {
   updatePlanning,
   deletePlanning,
   deleteBatch,
-  downloadTemplate
+  downloadTemplate,
+  getNightShiftStats,
+  exportNightShiftStats
 } = require('../controllers/planningController');
 
 const { protect } = require('../middleware/auth');
@@ -31,6 +33,10 @@ router.get('/my', listPlanningValidator, validate, getMyPlanning);
 
 // ✅ Admin Only: Download Template (MUST BE BEFORE getAllPlanning or /:id)
 router.get('/template', adminOnly, downloadTemplate);
+
+// Night Shifts (Admin & Zitouna)
+router.get('/night-shifts/export', authorize('admin', 'zitouna'), exportNightShiftStats);
+router.get('/night-shifts', authorize('admin', 'zitouna'), getNightShiftStats);
 
 // Everyone (including Zitouna) can see planning list
 router.get('/', listPlanningValidator, validate, getAllPlanning);

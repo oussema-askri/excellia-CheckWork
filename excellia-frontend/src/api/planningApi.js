@@ -4,7 +4,7 @@ export const planningApi = {
   upload: async (file) => {
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const response = await axios.post('/planning/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -51,6 +51,19 @@ export const planningApi = {
   downloadTemplate: async () => {
     const response = await axios.get('/planning/template', {
       responseType: 'blob',
+    })
+    return response
+  },
+
+  getNightShiftStats: async (params = {}) => {
+    const response = await axios.get('/planning/night-shifts', { params })
+    return response
+  },
+
+  exportNightShifts: async (params = {}) => {
+    const response = await axios.get('/planning/night-shifts/export', {
+      params,
+      responseType: 'blob'
     })
     return response
   },

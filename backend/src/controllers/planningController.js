@@ -2,6 +2,7 @@ const fs = require('fs').promises;
 const Planning = require('../models/Planning');
 const User = require('../models/User');
 const ExcelService = require('../services/excelService');
+const NightShiftService = require('../services/nightShiftService');
 const ApiError = require('../utils/ApiError');
 const ApiResponse = require('../utils/ApiResponse');
 const { PAGINATION } = require('../utils/constants');
@@ -372,6 +373,40 @@ const getPositions = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc    Get night shift statistics
+ * @route   GET /api/planning/night-shifts
+ * @access  Private/Admin
+ */
+const getNightShiftStats = async (req, res, next) => {
+  try {
+    const { startDate, endDate, employeeId } = req.query;
+    const start = startDate || dayjs().startOf('month').format('YYYY-MM-DD');
+    const end = endDate || dayjs().endOf('month').format('YYYY-MM-DD');
+    const stats = await NightShiftService.getNightShiftStats(start, end, employeeId);
+    ApiResponse.success(res, stats);
+  } catch (error) { next(error); }
+};
+
+/**
+ * @desc    Export night shift stats as Excel
+ * @route   GET /api/planning/night-shifts/export
+ * @access  Private/Admin
+ */
+const exportNightShiftStats = async (req, res, next) => {
+  try {
+    const { startDate, endDate, employeeId } = req.query;
+    const start = startDate || dayjs().startOf('month').format('YYYY-MM-DD');
+    const end = endDate || dayjs().endOf('month').format('YYYY-MM-DD');
+
+    const buffer = await NightShiftService.generateNightShiftExcel(start, end, employeeId);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Night_Shifts_Report_${start}_to_${end}.xlsx"`);
+    res.send(buffer);
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   uploadPlanning,
   getAllPlanning,
@@ -382,5 +417,7 @@ module.exports = {
   deletePlanning,
   deleteBatch,
   downloadTemplate,
-  getPositions
+  getPositions,
+  getNightShiftStats,
+  exportNightShiftStats
 };
