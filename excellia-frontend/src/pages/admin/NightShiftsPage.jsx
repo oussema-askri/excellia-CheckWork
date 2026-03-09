@@ -157,7 +157,7 @@ export default function NightShiftsPage() {
                     )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card title="By Department" className="dark:bg-gray-800 dark:border-gray-700 h-full">
+                        <Card title="Actual Attendance by Department" className="dark:bg-gray-800 dark:border-gray-700 h-full">
                             <div className="space-y-3 mt-2">
                                 {stats?.byDepartment?.map((dept, idx) => (
                                     <div key={idx} className="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-3 last:border-0">
@@ -171,7 +171,7 @@ export default function NightShiftsPage() {
                             </div>
                         </Card>
 
-                        <Card title={filters.employeeId ? "Selected Employee" : "Top Employees"} className="dark:bg-gray-800 dark:border-gray-700 h-full">
+                        <Card title={filters.employeeId ? "Selected Employee (Planned)" : "Expected Night Shifts"} className="dark:bg-gray-800 dark:border-gray-700 h-full">
                             <div className="space-y-3 mt-2">
                                 {stats?.byEmployee?.map((emp, idx) => (
                                     <div key={idx} className="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-3 last:border-0">

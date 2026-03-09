@@ -2,10 +2,12 @@ const dayjs = require('dayjs');
 const mongoose = require('mongoose');
 const XlsxPopulate = require('xlsx-populate');
 const Planning = require('../models/Planning');
+const Attendance = require('../models/Attendance');
 
 /**
  * Night shifts are "shift 1" and "shift 2" in the Planning model.
- * This service mirrors the Wassalni pattern but queries Planning instead of Attendance.
+ * - byDepartment: LIVE count from Attendance (actual night shifts worked)
+ * - byEmployee: Expected count from Planning (scheduled night shifts)
  */
 class NightShiftService {
     /**
@@ -15,34 +17,71 @@ class NightShiftService {
         const start = dayjs(startDate).startOf('day').toDate();
         const end = dayjs(endDate).endOf('day').toDate();
 
-        const matchQuery = {
+        const planningMatch = {
             date: { $gte: start, $lte: end },
             shift: { $regex: /^shift\s*[12]$/i }
         };
 
         if (employeeId) {
-            matchQuery.userId = new mongoose.Types.ObjectId(employeeId);
+            planningMatch.userId = new mongoose.Types.ObjectId(employeeId);
         }
 
-        // Total night shift count
+        // Total night shift count (from Planning - scheduled)
         const totalAgg = await Planning.aggregate([
-            { $match: matchQuery },
+            { $match: planningMatch },
             { $group: { _id: null, total: { $sum: 1 } } }
         ]);
         const totalNightShifts = totalAgg[0]?.total || 0;
 
-        // By department
-        const byDepartment = await Planning.aggregate([
-            { $match: matchQuery },
+        // By department (LIVE from Attendance - actual night shifts worked)
+        const attendanceMatch = {
+            date: { $gte: start, $lte: end },
+            checkIn: { $ne: null }
+        };
+        if (employeeId) {
+            attendanceMatch.userId = new mongoose.Types.ObjectId(employeeId);
+        }
+
+        const byDepartment = await Attendance.aggregate([
+            { $match: attendanceMatch },
+            // Lookup matching Planning record for same user + same day with night shift
+            {
+                $lookup: {
+                    from: 'plannings',
+                    let: { attUserId: '$userId', attDate: '$date' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$userId', '$$attUserId'] },
+                                        {
+                                            $eq: [
+                                                { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+                                                { $dateToString: { format: '%Y-%m-%d', date: '$$attDate' } }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                shift: { $regex: /^shift\s*[12]$/i }
+                            }
+                        },
+                        { $limit: 1 }
+                    ],
+                    as: 'nightPlan'
+                }
+            },
+            // Keep only attendance records that had a night shift planned
+            { $match: { 'nightPlan.0': { $exists: true } } },
             { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
             { $unwind: '$user' },
             { $group: { _id: '$user.department', count: { $sum: 1 } } },
             { $sort: { count: -1 } }
         ]);
 
-        // By employee (top 20)
+        // By employee - expected/scheduled (from Planning)
         const byEmployee = await Planning.aggregate([
-            { $match: matchQuery },
+            { $match: planningMatch },
             { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
             { $unwind: '$user' },
             {
@@ -55,9 +94,9 @@ class NightShiftService {
             { $limit: 20 }
         ]);
 
-        // By shift type (shift 1 vs shift 2 breakdown)
+        // By shift type (shift 1 vs shift 2 breakdown - from Planning)
         const byShift = await Planning.aggregate([
-            { $match: matchQuery },
+            { $match: planningMatch },
             {
                 $group: {
                     _id: { $toLower: '$shift' },
