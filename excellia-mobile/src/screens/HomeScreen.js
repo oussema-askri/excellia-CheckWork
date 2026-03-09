@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Linking, ScrollView, RefreshControl, Modal, TextInput } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, Alert, ActivityIndicator, Linking, ScrollView, RefreshControl, Modal, TextInput, AppState } from 'react-native';
 import dayjs from 'dayjs';
 import * as Location from 'expo-location';
+import * as Network from 'expo-network';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { colors, spacing, borderRadius, typography } from '../theme/theme';
 import { planningApi } from '../api/planningApi';
 import { scheduleShiftReminders } from '../utils/notifications';
+import { queueOfflineAction, syncPendingActions, getPendingCount, getLocalAttendance, clearLocalAttendance } from '../utils/offlineSync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PropTypes from 'prop-types';
 
@@ -58,6 +60,12 @@ export default function HomeScreen() {
   const [reason, setReason] = useState('');
   const [file, setFile] = useState(null);
 
+  // Offline state
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [localAttendance, setLocalAttendance] = useState(null);
+  const appState = useRef(AppState.currentState);
+
   const syncReminders = async () => {
     try {
       const enabled = await AsyncStorage.getItem('remindersEnabled');
@@ -73,20 +81,100 @@ export default function HomeScreen() {
     try {
       const res = await attendanceApi.getToday();
       setToday(res.data.attendance);
-    } catch (e) {}
+      // If server has data, clear any local offline attendance
+      if (res.data.attendance) {
+        await clearLocalAttendance();
+        setLocalAttendance(null);
+      }
+    } catch (e) {
+      // Offline — load local attendance state
+      const local = await getLocalAttendance();
+      if (local && (local.checkIn || local.checkOut)) {
+        setLocalAttendance(local);
+      }
+    }
+  };
+
+  const refreshPendingCount = async () => {
+    const count = await getPendingCount();
+    setPendingCount(count);
+  };
+
+  /**
+   * Try to sync pending offline actions. Called on:
+   * - App coming to foreground
+   * - Pull-to-refresh
+   * - Network state change (via interval check)
+   */
+  const attemptSync = async () => {
+    const count = await getPendingCount();
+    if (count === 0) return;
+
+    // Check network connectivity
+    try {
+      const networkState = await Network.getNetworkStateAsync();
+      if (!networkState.isConnected || !networkState.isInternetReachable) return;
+    } catch {
+      return; // Can't check network, skip sync
+    }
+
+    setSyncing(true);
+    try {
+      const result = await syncPendingActions();
+      if (result.synced > 0) {
+        await refreshToday();
+        Alert.alert(
+          '✅ Synced',
+          `${result.synced} offline action(s) synced successfully.${result.failed > 0 ? `\n${result.failed} failed.` : ''}`
+        );
+      }
+    } catch (e) {
+      console.log('Sync attempt failed:', e.message);
+    } finally {
+      setSyncing(false);
+      await refreshPendingCount();
+    }
   };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    await attemptSync();
     await refreshToday();
     await syncReminders();
+    await refreshPendingCount();
     setRefreshing(false);
   }, []);
 
   useEffect(() => {
     refreshToday();
+    refreshPendingCount();
     const t = setInterval(() => setNow(dayjs()), 1000);
-    return () => clearInterval(t);
+
+    // Listen for app coming to foreground to trigger sync
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        await attemptSync();
+        await refreshToday();
+        await refreshPendingCount();
+      }
+      appState.current = nextState;
+    });
+
+    // Periodic connectivity check for auto-sync (every 30s)
+    const syncInterval = setInterval(async () => {
+      const count = await getPendingCount();
+      if (count > 0) {
+        await attemptSync();
+        await refreshToday();
+        await refreshPendingCount();
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(t);
+      clearInterval(syncInterval);
+      subscription.remove();
+    };
   }, []);
 
   const requestLocationPayload = async () => {
@@ -96,14 +184,48 @@ export default function HomeScreen() {
     return { location: { latitude: pos.coords.latitude, longitude: pos.coords.longitude } };
   };
 
+  /**
+   * Check if the error is a network/connectivity error.
+   */
+  const isNetworkError = (error) => {
+    if (!error) return false;
+    const msg = (error.message || '').toLowerCase();
+    return (
+      msg.includes('network') ||
+      msg.includes('timeout') ||
+      msg.includes('internet') ||
+      msg.includes('econnrefused') ||
+      msg.includes('enotfound') ||
+      error.code === 'ERR_NETWORK' ||
+      error.code === 'ECONNABORTED'
+    );
+  };
+
   const performCheckIn = async (transportMethod) => {
     setLoading(true);
     try {
       const payload = await requestLocationPayload();
       payload.transportMethod = transportMethod;
-      await attendanceApi.checkIn(payload);
-      Alert.alert('Success', 'Checked in successfully.');
-      await refreshToday();
+
+      try {
+        await attendanceApi.checkIn(payload);
+        Alert.alert('Success', 'Checked in successfully.');
+        await refreshToday();
+      } catch (apiError) {
+        if (isNetworkError(apiError)) {
+          // Offline — queue the action
+          await queueOfflineAction('checkIn', payload);
+          await refreshPendingCount();
+          const local = await getLocalAttendance();
+          setLocalAttendance(local);
+          Alert.alert(
+            '📱 Saved Offline',
+            'No internet connection. Your check-in has been saved and will sync automatically when you\'re back online.'
+          );
+        } else {
+          throw apiError;
+        }
+      }
     } catch (e) { Alert.alert('Action Failed', e.message); } finally { setLoading(false); }
   };
 
@@ -112,14 +234,32 @@ export default function HomeScreen() {
     try {
       const payload = await requestLocationPayload();
       payload.transportMethod = transportMethod;
-      await attendanceApi.checkOut(payload);
-      Alert.alert('Success', 'Checked out successfully.');
-      await refreshToday();
+
+      try {
+        await attendanceApi.checkOut(payload);
+        Alert.alert('Success', 'Checked out successfully.');
+        await refreshToday();
+      } catch (apiError) {
+        if (isNetworkError(apiError)) {
+          // Offline — queue the action
+          await queueOfflineAction('checkOut', payload);
+          await refreshPendingCount();
+          const local = await getLocalAttendance();
+          setLocalAttendance(local);
+          Alert.alert(
+            '📱 Saved Offline',
+            'No internet connection. Your check-out has been saved and will sync automatically when you\'re back online.'
+          );
+        } else {
+          throw apiError;
+        }
+      }
     } catch (e) { Alert.alert('Action Failed', e.message); } finally { setLoading(false); }
   };
 
   const handlePressAction = () => {
-    const isCheckIn = !today?.checkIn;
+    const effectiveToday = today || localAttendance;
+    const isCheckIn = !effectiveToday?.checkIn;
     const title = isCheckIn ? 'Check In' : 'Check Out';
     const action = isCheckIn ? performCheckIn : performCheckOut;
     Alert.alert(title, 'Select your transportation method:', [
@@ -137,7 +277,7 @@ export default function HomeScreen() {
   const submitAbsence = async () => {
     if (!absenceType) return Alert.alert('Error', 'Please select a type');
     if (!reason) return Alert.alert('Error', 'Please enter a reason');
-    
+
     // ✅ Optional file for Maladie (removed mandatory check)
 
     setLoading(true);
@@ -156,9 +296,9 @@ export default function HomeScreen() {
       await attendanceApi.markAbsent(formData);
       setModalVisible(false);
       await refreshToday();
-      
+
       Alert.alert('Success', 'Request submitted. Opening SharePoint...');
-      
+
       const supported = await Linking.canOpenURL(LEAVE_REQUEST_URL);
       if (supported) await Linking.openURL(LEAVE_REQUEST_URL);
 
@@ -169,9 +309,12 @@ export default function HomeScreen() {
     }
   };
 
-  const checkedIn = !!today?.checkIn;
-  const checkedOut = !!today?.checkOut;
-  const isFinished = checkedOut || today?.status === 'absent' || today?.status === 'pending-absence';
+  // Use local attendance as fallback when server data is unavailable
+  const effectiveToday = today || localAttendance;
+  const checkedIn = !!effectiveToday?.checkIn;
+  const checkedOut = !!effectiveToday?.checkOut;
+  const isFinished = (today && (checkedOut || today?.status === 'absent' || today?.status === 'pending-absence'))
+    || (localAttendance && localAttendance.checkIn && localAttendance.checkOut);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -186,6 +329,20 @@ export default function HomeScreen() {
           </Pressable>
         </View>
 
+        {/* Pending Sync Banner */}
+        {pendingCount > 0 && (
+          <Pressable style={styles.syncBanner} onPress={attemptSync} disabled={syncing}>
+            <Ionicons name={syncing ? "sync" : "cloud-upload-outline"} size={20} color="#f59e0b" />
+            <Text style={styles.syncBannerText}>
+              {syncing
+                ? 'Syncing...'
+                : `${pendingCount} offline action${pendingCount > 1 ? 's' : ''} pending sync`
+              }
+            </Text>
+            {!syncing && <Text style={styles.syncBannerHint}>Tap to retry</Text>}
+          </Pressable>
+        )}
+
         <View style={styles.card}>
           <View style={styles.clockHeader}>
             <Ionicons name="time-outline" size={20} color={colors.textSecondary} />
@@ -194,14 +351,20 @@ export default function HomeScreen() {
           <Text style={styles.time}>{now.format('HH:mm')}<Text style={styles.seconds}>{now.format(':ss')}</Text></Text>
 
           <View style={styles.statsRow}>
-            <StatItem label="Check In" value={today?.checkIn ? dayjs(today.checkIn).format('HH:mm') : '--:--'} />
+            <StatItem
+              label={effectiveToday?.checkIn && !today?.checkIn ? "Check In ⏳" : "Check In"}
+              value={effectiveToday?.checkIn ? dayjs(effectiveToday.checkIn).format('HH:mm') : '--:--'}
+            />
             <View style={styles.divider} />
-            <StatItem label="Check Out" value={today?.checkOut ? dayjs(today.checkOut).format('HH:mm') : '--:--'} />
+            <StatItem
+              label={effectiveToday?.checkOut && !today?.checkOut ? "Check Out ⏳" : "Check Out"}
+              value={effectiveToday?.checkOut ? dayjs(effectiveToday.checkOut).format('HH:mm') : '--:--'}
+            />
             <View style={styles.divider} />
             <StatItem label="Hours" value={today?.workHours ? `${today.workHours.toFixed(1)}h` : '--'} />
           </View>
 
-          {!isFinished ? <ActionButton loading={loading} checkedIn={checkedIn} onPress={handlePressAction} /> : <StatusBanner status={today?.status} />}
+          {!isFinished ? <ActionButton loading={loading} checkedIn={checkedIn} onPress={handlePressAction} /> : <StatusBanner status={today?.status || 'present'} />}
         </View>
 
         {!isFinished && !checkedIn && (
@@ -281,7 +444,12 @@ const styles = StyleSheet.create({
   infoText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
   absentBtn: { flexDirection: 'row', justifyContent: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 20 },
   absentText: { color: '#ef4444', fontWeight: '700', fontSize: 16 },
-  
+
+  // Sync banner
+  syncBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)', borderRadius: borderRadius.lg, padding: spacing.md, marginBottom: spacing.md, gap: spacing.sm },
+  syncBannerText: { flex: 1, color: '#f59e0b', fontWeight: '700', fontSize: 14 },
+  syncBannerHint: { color: '#f59e0b', fontSize: 12, fontWeight: '600', opacity: 0.7 },
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: colors.card, borderTopLeftRadius: borderRadius.xl, borderTopRightRadius: borderRadius.xl, padding: spacing.lg, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg },

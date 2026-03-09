@@ -8,8 +8,8 @@ const dayjs = require('dayjs');
 
 const checkIn = async (req, res, next) => {
   try {
-    const { notes, location, transportMethod } = req.body;
-    const attendance = await AttendanceService.checkIn(req.user._id, location, notes, transportMethod);
+    const { notes, location, transportMethod, offlineTimestamp } = req.body;
+    const attendance = await AttendanceService.checkIn(req.user._id, location, notes, transportMethod, offlineTimestamp);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Checked in successfully');
   } catch (error) { next(error); }
@@ -17,8 +17,8 @@ const checkIn = async (req, res, next) => {
 
 const checkOut = async (req, res, next) => {
   try {
-    const { notes, location, transportMethod } = req.body;
-    const attendance = await AttendanceService.checkOut(req.user._id, location, notes, transportMethod);
+    const { notes, location, transportMethod, offlineTimestamp } = req.body;
+    const attendance = await AttendanceService.checkOut(req.user._id, location, notes, transportMethod, offlineTimestamp);
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Checked out successfully');
   } catch (error) { next(error); }
@@ -32,7 +32,7 @@ const markAbsent = async (req, res, next) => {
 
     const data = { notes, type, reason, file };
     const attendance = await AttendanceService.markAbsent(req.user._id, data);
-    
+
     await attendance.populate('userId', 'name employeeId email');
     ApiResponse.success(res, { attendance }, 'Marked as absent (Pending Approval)');
   } catch (error) { next(error); }
@@ -86,7 +86,7 @@ const getAllAttendance = async (req, res, next) => {
     const pageNum = parseInt(page);
     const limitNum = Math.min(parseInt(limit), PAGINATION.MAX_LIMIT);
     const skip = (pageNum - 1) * limitNum;
-    
+
     let attendances, total;
     if (department) {
       const pipeline = [

@@ -8,7 +8,7 @@ const { getDateBounds } = require('../utils/helpers');
 const { ATTENDANCE_STATUS, LATE_THRESHOLD_MINUTES } = require('../utils/constants');
 
 class AttendanceService {
-  static async checkIn(userId, location = null, notes = '', transportMethod = 'none') {
+  static async checkIn(userId, location = null, notes = '', transportMethod = 'none', offlineTimestamp = null) {
     const requireGeo = String(process.env.REQUIRE_GEOFENCE || 'false') === 'true';
 
     if (requireGeo) {
@@ -27,8 +27,8 @@ class AttendanceService {
       }
     }
 
-    const today = new Date();
-    const { start, end } = getDateBounds(today);
+    const effectiveTime = offlineTimestamp ? new Date(offlineTimestamp) : new Date();
+    const { start, end } = getDateBounds(effectiveTime);
 
     const startOfYesterday = dayjs().subtract(1, 'day').startOf('day').toDate();
     const endOfYesterday = dayjs().subtract(1, 'day').endOf('day').toDate();
@@ -58,7 +58,7 @@ class AttendanceService {
       attendance = new Attendance({ userId, date: start });
     }
 
-    attendance.checkIn = new Date();
+    attendance.checkIn = offlineTimestamp ? new Date(offlineTimestamp) : new Date();
     attendance.status = ATTENDANCE_STATUS.PRESENT;
     if (notes) attendance.notes = notes;
     if (transportMethod) attendance.transportMethodIn = transportMethod;
@@ -76,7 +76,7 @@ class AttendanceService {
     return attendance;
   }
 
-  static async checkOut(userId, location = null, notes = '', transportMethod = 'none') {
+  static async checkOut(userId, location = null, notes = '', transportMethod = 'none', offlineTimestamp = null) {
     const today = new Date();
     const { start, end } = getDateBounds(today);
     let attendance = await Attendance.findOne({ userId, date: { $gte: start, $lte: end } });
@@ -102,7 +102,7 @@ class AttendanceService {
     if (!attendance.checkIn) throw ApiError.badRequest('Must check in first');
     if (attendance.checkOut) throw ApiError.badRequest('Already checked out');
 
-    attendance.checkOut = new Date();
+    attendance.checkOut = offlineTimestamp ? new Date(offlineTimestamp) : new Date();
     if (transportMethod) attendance.transportMethodOut = transportMethod;
     if (location) attendance.checkOutLocation = { latitude: location.latitude, longitude: location.longitude, address: location.address || '' };
     if (notes) attendance.notes = attendance.notes ? `${attendance.notes}; ${notes}` : notes;
