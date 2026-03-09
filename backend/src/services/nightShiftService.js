@@ -151,7 +151,7 @@ class NightShiftService {
         ]);
 
         const wb = await XlsxPopulate.fromBlankAsync();
-        const sheet = wb.sheet(0);
+        const sheet = wb.sheet(0).name('Planned Night Shifts');
 
         const headerStyle = (cell) => {
             cell.style({
@@ -182,7 +182,7 @@ class NightShiftService {
             row++;
         });
 
-        sheet.cell(`A${row}`).value('Total Night Shifts').style({ bold: true });
+        sheet.cell(`A${row}`).value('Total Planned').style({ bold: true });
         sheet.cell(`E${row}`).value(records.length).style({ bold: true, horizontalAlignment: 'center' });
 
         sheet.column('A').width(15);
@@ -192,6 +192,103 @@ class NightShiftService {
         sheet.column('E').width(12);
         sheet.column('F').width(12);
         sheet.column('G').width(12);
+
+        // ── Sheet 2: Actual Night Shifts (from Attendance) ──
+        const attendanceMatch = {
+            date: { $gte: start, $lte: end },
+            checkIn: { $ne: null },
+            checkOut: { $ne: null }
+        };
+        if (employeeId) {
+            attendanceMatch.userId = new mongoose.Types.ObjectId(employeeId);
+        }
+
+        const actualRecords = await Attendance.aggregate([
+            { $match: attendanceMatch },
+            {
+                $lookup: {
+                    from: 'plannings',
+                    let: { attUserId: '$userId', attDate: '$date' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$userId', '$$attUserId'] },
+                                        {
+                                            $eq: [
+                                                { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+                                                { $dateToString: { format: '%Y-%m-%d', date: '$$attDate' } }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                shift: { $regex: /^shift\s*[12]$/i }
+                            }
+                        },
+                        { $limit: 1 }
+                    ],
+                    as: 'nightPlan'
+                }
+            },
+            { $match: { 'nightPlan.0': { $exists: true } } },
+            { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+            { $unwind: '$user' },
+            {
+                $project: {
+                    employeeId: '$user.employeeId',
+                    name: '$user.name',
+                    department: '$user.department',
+                    date: '$date',
+                    shift: { $arrayElemAt: ['$nightPlan.shift', 0] },
+                    checkIn: '$checkIn',
+                    checkOut: '$checkOut'
+                }
+            },
+            { $sort: { employeeId: 1, date: 1 } }
+        ]);
+
+        const actualSheet = wb.addSheet('Actual Night Shifts');
+
+        const actualHeaderStyle = (cell) => {
+            cell.style({
+                fill: '059669',
+                fontColor: 'ffffff',
+                bold: true,
+                horizontalAlignment: 'left'
+            });
+        };
+
+        actualSheet.cell('A1').value('EmployeeID').tap(actualHeaderStyle);
+        actualSheet.cell('B1').value('Name').tap(actualHeaderStyle);
+        actualSheet.cell('C1').value('Date').tap(actualHeaderStyle);
+        actualSheet.cell('D1').value('Department').tap(actualHeaderStyle);
+        actualSheet.cell('E1').value('Shift').tap(actualHeaderStyle);
+        actualSheet.cell('F1').value('Check In').tap(actualHeaderStyle);
+        actualSheet.cell('G1').value('Check Out').tap(actualHeaderStyle);
+
+        let row2 = 2;
+        actualRecords.forEach(rec => {
+            actualSheet.cell(`A${row2}`).value(rec.employeeId);
+            actualSheet.cell(`B${row2}`).value(rec.name);
+            actualSheet.cell(`C${row2}`).value(dayjs(rec.date).format('YYYY-MM-DD'));
+            actualSheet.cell(`D${row2}`).value(rec.department);
+            actualSheet.cell(`E${row2}`).value(rec.shift);
+            actualSheet.cell(`F${row2}`).value(rec.checkIn ? dayjs(rec.checkIn).format('HH:mm') : '');
+            actualSheet.cell(`G${row2}`).value(rec.checkOut ? dayjs(rec.checkOut).format('HH:mm') : '');
+            row2++;
+        });
+
+        actualSheet.cell(`A${row2}`).value('Total Actual').style({ bold: true });
+        actualSheet.cell(`E${row2}`).value(actualRecords.length).style({ bold: true, horizontalAlignment: 'center' });
+
+        actualSheet.column('A').width(15);
+        actualSheet.column('B').width(25);
+        actualSheet.column('C').width(15);
+        actualSheet.column('D').width(30);
+        actualSheet.column('E').width(12);
+        actualSheet.column('F').width(12);
+        actualSheet.column('G').width(12);
 
         return wb.outputAsync();
     }
