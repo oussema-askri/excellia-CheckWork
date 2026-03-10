@@ -112,8 +112,10 @@ class NightShiftService {
             },
             { $sort: { _id: 1 } }
         ]);
+        // Calculate total actual count from actualByEmployee
+        const totalActual = actualByEmployee.reduce((sum, emp) => sum + emp.count, 0);
 
-        return { totalNightShifts, actualByEmployee, byEmployee, byShift };
+        return { totalNightShifts, totalActual, actualByEmployee, byEmployee, byShift };
     }
 
     /**

@@ -134,15 +134,26 @@ export default function NightShiftsPage() {
 
             {loading ? <div className="py-12"><Loading /></div> : (
                 <>
-                    <Card className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-0 shadow-lg transform hover:scale-[1.01] transition-all">
-                        <div className="text-center py-6">
-                            <p className="text-xl font-medium opacity-90">Total Night Shifts</p>
-                            <p className="text-6xl font-extrabold mt-2 tracking-tight">{stats?.totalNightShifts || 0}</p>
-                            {filters.employeeId && <p className="text-sm mt-2 opacity-75 font-medium">(For selected employee)</p>}
-                        </div>
-                    </Card>
+                    {/* Two totals side-by-side */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Card className="bg-gradient-to-br from-emerald-600 to-teal-600 text-white border-0 shadow-lg transform hover:scale-[1.01] transition-all">
+                            <div className="text-center py-6">
+                                <p className="text-lg font-medium opacity-90">Actual Night Shifts</p>
+                                <p className="text-5xl font-extrabold mt-2 tracking-tight">{stats?.totalActual || 0}</p>
+                                <p className="text-xs mt-2 opacity-75">Checked in & out</p>
+                            </div>
+                        </Card>
 
-                    {/* Shift breakdown */}
+                        <Card className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white border-0 shadow-lg transform hover:scale-[1.01] transition-all">
+                            <div className="text-center py-6">
+                                <p className="text-lg font-medium opacity-90">Expected Night Shifts</p>
+                                <p className="text-5xl font-extrabold mt-2 tracking-tight">{stats?.totalNightShifts || 0}</p>
+                                <p className="text-xs mt-2 opacity-75">Planned / scheduled</p>
+                            </div>
+                        </Card>
+                    </div>
+
+                    {/* Shift 1 / Shift 2 breakdown */}
                     {stats?.byShift?.length > 0 && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {stats.byShift.map((s, idx) => (
@@ -156,8 +167,9 @@ export default function NightShiftsPage() {
                         </div>
                     )}
 
+                    {/* Employee lists side-by-side */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card title="Actual Night Shifts" className="dark:bg-gray-800 dark:border-gray-700 h-full">
+                        <Card title="Actual Night Shifts" className="dark:bg-gray-800 dark:border-gray-700 h-full border-t-4 border-t-emerald-500">
                             <div className="space-y-3 mt-2">
                                 {stats?.actualByEmployee?.map((emp, idx) => (
                                     <div key={idx} className="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-3 last:border-0">
@@ -174,7 +186,7 @@ export default function NightShiftsPage() {
                             </div>
                         </Card>
 
-                        <Card title={filters.employeeId ? "Selected Employee (Planned)" : "Expected Night Shifts"} className="dark:bg-gray-800 dark:border-gray-700 h-full">
+                        <Card title="Expected Night Shifts" className="dark:bg-gray-800 dark:border-gray-700 h-full border-t-4 border-t-indigo-500">
                             <div className="space-y-3 mt-2">
                                 {stats?.byEmployee?.map((emp, idx) => (
                                     <div key={idx} className="flex justify-between items-center border-b border-gray-100 dark:border-gray-700 pb-3 last:border-0">
