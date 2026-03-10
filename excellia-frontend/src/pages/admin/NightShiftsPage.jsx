@@ -134,13 +134,23 @@ export default function NightShiftsPage() {
 
             {loading ? <div className="py-12"><Loading /></div> : (
                 <>
-                    {/* Two totals side-by-side */}
+                    {/* Two totals side-by-side with shift breakdowns */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Card className="bg-gradient-to-br from-emerald-600 to-teal-600 text-white border-0 shadow-lg transform hover:scale-[1.01] transition-all">
                             <div className="text-center py-6">
                                 <p className="text-lg font-medium opacity-90">Actual Night Shifts</p>
                                 <p className="text-5xl font-extrabold mt-2 tracking-tight">{stats?.totalActual || 0}</p>
                                 <p className="text-xs mt-2 opacity-75">Checked in & out</p>
+                                {stats?.actualByShift?.length > 0 && (
+                                    <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/20">
+                                        {stats.actualByShift.map((s, idx) => (
+                                            <div key={idx}>
+                                                <p className="text-xs uppercase opacity-75">{s._id}</p>
+                                                <p className="text-2xl font-bold">{s.count}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </Card>
 
@@ -149,23 +159,19 @@ export default function NightShiftsPage() {
                                 <p className="text-lg font-medium opacity-90">Expected Night Shifts</p>
                                 <p className="text-5xl font-extrabold mt-2 tracking-tight">{stats?.totalNightShifts || 0}</p>
                                 <p className="text-xs mt-2 opacity-75">Planned / scheduled</p>
+                                {stats?.byShift?.length > 0 && (
+                                    <div className="flex justify-center gap-6 mt-4 pt-4 border-t border-white/20">
+                                        {stats.byShift.map((s, idx) => (
+                                            <div key={idx}>
+                                                <p className="text-xs uppercase opacity-75">{s._id}</p>
+                                                <p className="text-2xl font-bold">{s.count}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </Card>
                     </div>
-
-                    {/* Shift 1 / Shift 2 breakdown */}
-                    {stats?.byShift?.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {stats.byShift.map((s, idx) => (
-                                <Card key={idx} className="dark:bg-gray-800 dark:border-gray-700">
-                                    <div className="text-center py-4">
-                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{s._id}</p>
-                                        <p className="text-4xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-1">{s.count}</p>
-                                    </div>
-                                </Card>
-                            ))}
-                        </div>
-                    )}
 
                     {/* Employee lists side-by-side */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

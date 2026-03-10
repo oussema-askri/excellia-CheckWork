@@ -101,7 +101,7 @@ class NightShiftService {
             { $limit: 20 }
         ]);
 
-        // By shift type (shift 1 vs shift 2 breakdown - from Planning)
+        // By shift type - expected (shift 1 vs shift 2 breakdown - from Planning)
         const byShift = await Planning.aggregate([
             { $match: planningMatch },
             {
@@ -112,10 +112,50 @@ class NightShiftService {
             },
             { $sort: { _id: 1 } }
         ]);
+
+        // By shift type - actual (from Attendance cross-referenced with Planning)
+        const actualByShift = await Attendance.aggregate([
+            { $match: attendanceMatch },
+            {
+                $lookup: {
+                    from: 'plannings',
+                    let: { attUserId: '$userId', attDate: '$date' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$userId', '$$attUserId'] },
+                                        {
+                                            $eq: [
+                                                { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+                                                { $dateToString: { format: '%Y-%m-%d', date: '$$attDate' } }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                shift: { $regex: /^shift\s*[12]$/i }
+                            }
+                        },
+                        { $limit: 1 }
+                    ],
+                    as: 'nightPlan'
+                }
+            },
+            { $match: { 'nightPlan.0': { $exists: true } } },
+            {
+                $group: {
+                    _id: { $toLower: { $arrayElemAt: ['$nightPlan.shift', 0] } },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
         // Calculate total actual count from actualByEmployee
         const totalActual = actualByEmployee.reduce((sum, emp) => sum + emp.count, 0);
 
-        return { totalNightShifts, totalActual, actualByEmployee, byEmployee, byShift };
+        return { totalNightShifts, totalActual, actualByEmployee, actualByShift, byEmployee, byShift };
     }
 
     /**
